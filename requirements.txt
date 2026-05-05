@@ -1,0 +1,3 @@
+langchain-text-splitters
+libmagic
+pyxtxt[pdf,docx,presentation,txt]
