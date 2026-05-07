@@ -34,7 +34,7 @@ def chunk_text(text):
     A list of text chunks of size CHUNK_SIZE with CHUNK_OVERLAP
 
     Raises:
-    Runtime Error: if RecursiveCharacterTextSplitter fails whilw text splitting
+    Runtime Error: if RecursiveCharacterTextSplitter fails while text splitting
     """
     try:
         text_splitter = RecursiveCharacterTextSplitter(
