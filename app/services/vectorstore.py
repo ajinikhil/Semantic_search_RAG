@@ -9,6 +9,20 @@ collection = chroma_client.get_or_create_collection(name="user_files")
 
 
 def add_chunks(chunks, embeddings, filename):
+    """
+    inserts text chunks and their embeddings into ChromaDB
+
+    Args:
+        chunks: The text chunks extracted from documents
+        embeddings: embeddings of the chunks
+        filename: from which file those chunks are from
+
+    Returns:
+            None
+
+    Raises:
+        RuntimeError: if the chunks were failed to insert in ChromaDB
+    """
     try:
         collection.add(
             documents=chunks,
@@ -23,6 +37,18 @@ def add_chunks(chunks, embeddings, filename):
 
 
 def search(query_vector):
+    """
+    Searches for the most similar chunks to the query vector in ChromaDB
+
+    Args:
+        query_vector: the question user asked as a vector
+
+    Returns:
+            top 5 closest result related to the users question
+
+    Raises:
+        RuntimeError: if retreving results from chromaDB
+    """
     try:
         results = collection.query(
             query_embeddings=[query_vector],
