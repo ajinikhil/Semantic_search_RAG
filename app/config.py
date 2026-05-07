@@ -1,1 +1,5 @@
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 200
+CHROMA_DB_PATH = "/data/chroma_db"
+CHROMA_RESULTS_RETURNED = 5
