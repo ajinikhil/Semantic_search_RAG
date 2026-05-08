@@ -1,19 +1,75 @@
+from google import genai
+
+from app.config import MODEL_NAME
+
+client = genai.Client()
+
+
 def build_prompt(question, chunks):
-    texts = chunks["documents"][0]
+    """
+    This function builds a prompt for the LLM
+    using the users question and retrieved chunks.
 
-    context = "\n\n".join(texts)
+    Args:
+    question: question or query asked by the user
 
-    prompt = f"""you are a helpful assistant. Answer
-                the question only from context below.
-                If the answer is not in the context say
-                "I don't know".
+    chunks: Dictionary containing retrived document chunks
 
-                CONTEXT:
-                {context}
+    Returns:
+    prompt: A prompt containing the context and question for
+            the language model.
 
-                QUESTION:
-                {question}
+    Raise:
+    Runtime error: if the function fails to build a prompt
+    """
+    try:
 
-                ANSWER: ""
-                """
-    return prompt
+        texts = chunks["documents"][0]
+
+        context = "\n\n".join(texts)
+
+        prompt = f"""you are a helpful assistant. Answer
+                    the question only from context below.
+                    If the answer is not in the context say
+                    "I don't know".
+
+                    CONTEXT:
+                    {context}
+
+                    QUESTION:
+                    {question}
+
+                    ANSWER: ""
+                    """
+        return prompt
+    except Exception as e:
+        raise RuntimeError(f"Error building prompt {e}")
+
+
+def generate_answer(question, chunks):
+    """
+    Generates answer for the user's question using
+    the retrived chunks and Gemini LM.
+
+    Args:
+        question: the question asked by the user
+        chunks: Dictionary containing retrived document chunks
+                used as context for genereating answer.
+
+    Returns:
+        answer: The genarated answer from Gemini LM
+
+    Raise:
+     Runtime error: if the model fails to generate an answer
+    """
+    try:
+        prompt = build_prompt(question, chunks)
+
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=(prompt),
+        )
+        answer = response.text
+        return answer
+    except Exception as e:
+        raise RuntimeError(f"Error generating answer {e}")
