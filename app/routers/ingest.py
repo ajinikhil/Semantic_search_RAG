@@ -12,6 +12,32 @@ router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
 @router.post("/upload", response_model=IngestResponse)
 async def upload_document(file: UploadFile = File(...)):
+    """File upload, validation, processing and storing the
+    doument to a vector database.
+
+    When the user uploads the file, it is:
+
+    * It is validated aganist the supported file extensions
+    * saved to upload directory
+    * Parsed into raw text
+    * Split into chunks
+    * Stored in vector database
+
+
+    Args:
+        file (UploadFile): The uploaded document file
+
+    Raises:
+        HTTPException: When the file is unsupported, text
+                        extraction fails or when document
+                        processing encounters an error.
+
+    Returns:
+        IngestResponse: Metadata about the stored documents
+                        which includes file name, number of
+                        chunks created and ingestion status
+                        message.
+    """
     extension = Path(file.filename).suffix.lower()
     if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
