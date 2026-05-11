@@ -4,7 +4,7 @@ from sentence_transformers import SentenceTransformer
 model = SentenceTransformer(EMBEDDING_MODEL)
 
 
-def embd_text(text):
+def embed_text(text):
     """
     Embed the text chunks extracted from documents
     before storing it into ChromaDB
@@ -25,7 +25,7 @@ def embd_text(text):
         raise RuntimeError(f"Error encoding text: {e}")
 
 
-def embd_query(query):
+def embed_query(query):
     """
     Embed the query text into vector for similarity search
     in ChromaDB
