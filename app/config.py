@@ -9,3 +9,4 @@ CHROMA_RESULTS_RETURNED = 5
 MODEL_NAME = "gemini-3-flash-preview"
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 UPLOAD_DIR = "uploads"
+TOP_K = 5
