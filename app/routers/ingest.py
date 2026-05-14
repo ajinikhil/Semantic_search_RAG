@@ -53,38 +53,38 @@ async def upload_document(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-        try:
+    try:
 
-            raw_text = parser.extract_text(str(file_path))
+        raw_text = parser.extract_text(str(file_path))
 
-            if not raw_text.strip():
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        "Could not extract any text from the document."
-                        " The file may be empty or scanned"
-                    ),
-                )
-
-            chunks = parser.chunk_text(raw_text)
-
-            embeddings = embedder.embed_text(chunks)
-
-            chunks_created = vectorstore.add_chunks(
-                chunks=chunks, embeddings=embeddings, filename=file.filename
-            )
-
-        except Exception as e:
-
+        if not raw_text.strip():
             raise HTTPException(
-                status_code=500, detail=f"Failed to process document: {str(e)}"
+                status_code=422,
+                detail=(
+                    "Could not extract any text from the document."
+                    " The file may be empty or scanned"
+                ),
             )
 
-        return IngestResponse(
-            filename=file.filename,
-            chunks_created=chunks_created,
-            message=(f"'{file.filename}' successfully ingested into the vector store."),
+        chunks = parser.chunk_text(raw_text)
+
+        embeddings = embedder.embed_text(chunks)
+
+        chunks_created = vectorstore.add_chunks(
+            chunks=chunks, embeddings=embeddings, filename=file.filename
         )
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500, detail=f"Failed to process document: {str(e)}"
+        )
+
+    return IngestResponse(
+        filename=file.filename,
+        chunks_created=chunks_created,
+        message=(f"'{file.filename}' successfully ingested into the vector store."),
+    )
 
 
 @router.get("/documents", response_model=DbInfo)
