@@ -1,6 +1,7 @@
-from config import CHUNK_OVERLAP, CHUNK_SIZE
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pyxtxt import xtxt
+
+from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
 
 def extract_text(document):
