@@ -24,9 +24,10 @@ def build_prompt(question, chunks):
     """
     try:
 
-        texts = chunks["documents"][0]
-
-        context = "\n\n".join(texts)
+        context = "\n\n".join(
+            f"[Source: {chunk.file_name}, chunk {chunk.chunk_index}]\n{chunk.text}"
+            for chunk in chunks
+        )
 
         prompt = f"""you are a helpful assistant. Answer
                     the question only from context below.
@@ -39,7 +40,7 @@ def build_prompt(question, chunks):
                     QUESTION:
                     {question}
 
-                    ANSWER: ""
+                    ANSWER:
                     """
         return prompt
     except Exception as e:
