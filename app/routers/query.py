@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.models.schemas import QueryRequest, QueryResponse
+from app.models.schemas import QueryRequest, QueryResponse, SourceChunk
 from app.services.embedder import embed_query
 from app.services.llm import generate_answer
 from app.services.vectorstore import search
@@ -26,8 +26,23 @@ async def query(request: QueryRequest):
     """
     query_vector = embed_query(request.query)
 
-    chunks = search(query_vector)
+    raw_results = search(query_vector)
 
-    answer = generate_answer(request.query, chunks)
+    sources = []
+    for doc, meta, distance in zip(
+        raw_results["documents"][0],
+        raw_results["metadatas"][0],
+        raw_results["distances"][0],
+    ):
+        sources.append(
+            SourceChunk(
+                text=doc,
+                file_name=meta["filename"],
+                chunk_index=meta["chunk_index"],
+                similarity_score=round(1 - distance / 2, 4),
+            )
+        )
 
-    return QueryResponse(answer=answer, sources=chunks)
+    answer = generate_answer(request.query, sources)
+
+    return QueryResponse(query=request.query, response=answer, sources=sources)
