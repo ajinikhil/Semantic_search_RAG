@@ -122,7 +122,7 @@ async def delete_document(filename: str):
     if chunks_deleted == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"Document '{filename} not found in the vector store'",
+            detail=f"Document '{filename}' not found in the vector store",
         )
 
     return DeleteResponse(
