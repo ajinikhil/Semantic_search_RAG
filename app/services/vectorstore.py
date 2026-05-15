@@ -1,8 +1,9 @@
+import os
 import uuid
 
 import chromadb
 
-from app.config import CHROMA_DB_PATH, CHROMA_RESULTS_RETURNED
+from app.config import CHROMA_DB_PATH, CHROMA_RESULTS_RETURNED, UPLOAD_DIR
 
 chroma_client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 
@@ -64,21 +65,28 @@ def search(query_vector):
 
 
 def delete_by_file_name(filename):
-    """_summary_
+    """
 
     Args:
-        filename (_type_): _description_
+        filename (_type_):
 
     Returns:
-        _type_: _description_
+
     """
     try:
         results = collection.get(where={"filename": filename})
         ids = results["ids"]
-        if ids:
-            collection.delete(ids=ids)
-            return len(ids)
-        return 0
+        if not ids:
+            raise RuntimeError(f"No document found with filename: {filename}")
+        collection.delete(ids=ids)
+
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        return len(ids)
+    except RuntimeError:
+        raise
     except Exception as e:
         raise RuntimeError(f"Error deleting the file: {e}")
 
