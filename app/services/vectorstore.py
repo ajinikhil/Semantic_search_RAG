@@ -66,11 +66,20 @@ def search(query_vector):
 
 def delete_by_file_name(filename):
     """
+    Deletes all chunks associated with a file from ChromaDB
+    and removes the original uploaded file from the upload
+    directory.
 
     Args:
-        filename (_type_):
+        filename (str): Name of the file to delete.
+
+    Raises:
+        RuntimeError: If no document exists with the given file name.
+        RuntimeError: If an error occurs while deleting the document or
+                        chunks from ChromaDB.
 
     Returns:
+        Number of chunks deleted from ChromaDB.
 
     """
     try:
@@ -92,6 +101,19 @@ def delete_by_file_name(filename):
 
 
 def get_stats():
+    """
+    Retrieves statistics about the stored documents and it's
+    chunks from ChromaDB.
+
+    Raises:
+        RuntimeError: If an error occurs while retrieving stats from
+                        ChromaDB.
+
+    Returns:
+        dict: A dictionary containing:
+                - total_chunks (int): Total number of chunks stored.
+                - documents (list[str]): List of unique document filename.
+    """
     try:
         total = collection.count()
 
