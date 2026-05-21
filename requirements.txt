@@ -5,3 +5,4 @@ chromadb
 pydantic
 fastapi
 sentence_transformers
+google-genai
