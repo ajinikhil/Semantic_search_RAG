@@ -2,3 +2,6 @@ langchain-text-splitters
 libmagic
 pyxtxt[pdf,docx,presentation,txt]
 chromadb
+pydantic
+fastapi
+sentence_transformers
