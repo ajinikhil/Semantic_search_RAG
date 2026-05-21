@@ -1,0 +1,162 @@
+{
+  "info": {
+    "_postman_id": "5a58acba-6f74-4817-a877-efab6258a3bf",
+    "name": "New Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "53187141"
+  },
+  "item": [
+    {
+      "name": "Health_check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://127.0.0.1:8000/health",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "upload_document",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "uuid": "4b15af2b-730d-4e73-9b23-8406cc172aa4",
+              "src": "/Users/naji/Downloads/sample.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/ingest/upload",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "ingest",
+            "upload"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "stats",
+      "protocolProfileBehavior": {
+        "disableBodyPruning": true
+      },
+      "request": {
+        "method": "GET",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "uuid": "4b15af2b-730d-4e73-9b23-8406cc172aa4",
+              "src": "/Users/naji/Downloads/sample.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/ingest/documents",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "ingest",
+            "documents"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "ask_question",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "\n{\n    \"query\": \"what is the document about?\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/query",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "query"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "delete_doc",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "\n{\n    \"query\": \"what is the document about?\"\n}"
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/ingest/documents/sample.pdf",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "ingest",
+            "documents",
+            "sample.pdf"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
