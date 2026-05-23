@@ -44,8 +44,8 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Unsupported file type: {extension}."
-                "Allowed extensions: {' '.join(ALLOWED_EXTENSIONS)}"
+                f"Unsupported file type:{extension}. "
+                f"Allowed extensions: {' '.join(ALLOWED_EXTENSIONS)}"
             ),
         )
 
