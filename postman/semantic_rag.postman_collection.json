@@ -199,6 +199,14 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Empty file",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
     }
   ]
 }
