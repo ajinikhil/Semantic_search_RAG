@@ -42,8 +42,7 @@ async def upload_document(file: UploadFile = File(...)):
 
     if not file.filename:
         raise HTTPException(
-            status_code=422,
-            detail="No file was attached. Please upload a file."
+            status_code=422, detail="No file was attached. Please upload a file."
         )
 
     extension = Path(file.filename).suffix.lower()
