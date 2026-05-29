@@ -1,11 +1,12 @@
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
-from app.services.parser import extract_text, chunk_text
-from app.config import CHUNK_SIZE, CHUNK_OVERLAP
-
+from app.config import CHUNK_OVERLAP, CHUNK_SIZE
+from app.services.parser import chunk_text, extract_text
 
 # ── extract_text tests ────────────────────────────────────────────────────────
+
 
 class TestExtractText:
 
@@ -31,7 +32,9 @@ class TestExtractText:
 
     def test_extract_text_error_message_contains_original_error(self):
         """RuntimeError message should include the original exception message"""
-        with patch("app.services.parser.xtxt", side_effect=Exception("permission denied")):
+        with patch(
+            "app.services.parser.xtxt", side_effect=Exception("permission denied")
+        ):
             with pytest.raises(RuntimeError) as exc_info:
                 extract_text("locked.pdf")
         assert "permission denied" in str(exc_info.value)
@@ -44,6 +47,7 @@ class TestExtractText:
 
 
 # ── chunk_text tests ──────────────────────────────────────────────────────────
+
 
 class TestChunkText:
 
@@ -70,9 +74,9 @@ class TestChunkText:
         text = "word " * 500
         result = chunk_text(text)
         for chunk in result:
-            assert len(chunk) <= CHUNK_SIZE, (
-                f"Chunk of size {len(chunk)} exceeds CHUNK_SIZE {CHUNK_SIZE}"
-            )
+            assert (
+                len(chunk) <= CHUNK_SIZE
+            ), f"Chunk of size {len(chunk)} exceeds CHUNK_SIZE {CHUNK_SIZE}"
 
     def test_chunk_text_empty_string_returns_empty_list(self):
         """empty string input should return an empty list"""
@@ -107,7 +111,7 @@ class TestChunkText:
         """chunk_text should raise RuntimeError if splitter fails"""
         with patch(
             "app.services.parser.RecursiveCharacterTextSplitter",
-            side_effect=Exception("splitter crashed")
+            side_effect=Exception("splitter crashed"),
         ):
             with pytest.raises(RuntimeError) as exc_info:
                 chunk_text("some text")
@@ -117,7 +121,7 @@ class TestChunkText:
         """RuntimeError should include the original exception message"""
         with patch(
             "app.services.parser.RecursiveCharacterTextSplitter",
-            side_effect=Exception("out of memory")
+            side_effect=Exception("out of memory"),
         ):
             with pytest.raises(RuntimeError) as exc_info:
                 chunk_text("some text")
