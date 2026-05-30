@@ -1,3 +1,5 @@
+import pytest
+
 from app.services import embedder
 
 SAMPLE_TEXT = (
@@ -48,3 +50,9 @@ def test_different_embeddings():
     embedding2 = embedder.embed_text(SAMPLE_TEXT)
 
     assert embedding1 != embedding2
+
+
+def test_empty_string_raises_error():
+    """empty string should raise a ValueError"""
+    with pytest.raises(ValueError):
+        embedder.embed_text("")
