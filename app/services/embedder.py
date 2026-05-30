@@ -19,6 +19,9 @@ def embed_text(text):
     Raises:
     Runtime error: if the embedding model fails to encode the texts
     """
+    if not text or not text.strip():
+        raise ValueError("text cannot be empty")
+
     try:
         embeddings = model.encode(text, normalize_embeddings=True)
         return embeddings.tolist()
