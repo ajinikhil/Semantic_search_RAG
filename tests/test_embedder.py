@@ -53,6 +53,8 @@ def test_different_embeddings():
 
 
 def test_empty_string_raises_error():
-    """empty string should raise a ValueError"""
+    """
+    empty string should raise a ValueError
+    """
     with pytest.raises(ValueError):
         embedder.embed_text("")
