@@ -1,7 +1,9 @@
+from unittest.mock import patch
+
 import pytest
 
 from app.models.schemas import SourceChunk
-from app.services.llm import build_prompt
+from app.services.llm import build_prompt, generate_answer
 
 
 @pytest.fixture
@@ -80,3 +82,44 @@ def test_prompt_empty_question(sample_chunks):
 def test_prompt_raises_runtime_error_on_invalid_chunks():
     with pytest.raises(RuntimeError):
         build_prompt("What is FastAPI?", ["invalid", "chunks"])
+
+
+@patch("app.services.llm.client")
+def test_generate_answer_returns_string(mock_client, sample_chunks):
+    mock_client.models.generate_content.return_value.text = (
+        "FastAPI is a web framework."
+    )
+    answer = generate_answer("What is FastAPI?", sample_chunks)
+    assert isinstance(answer, str)
+
+
+@patch("app.services.llm.client")
+def test_generate_answer_returns_llm_response(mock_client, sample_chunks):
+    mock_client.models.generate_content.return_value.text = (
+        "FastAPI is a web framework."
+    )
+    answer = generate_answer("What is FastAPI?", sample_chunks)
+    assert answer == "FastAPI is a web framework."
+
+
+@patch("app.services.llm.client")
+def test_generate_answer_calls_api_once(mock_client, sample_chunks):
+    mock_client.models.generate_content.return_value.text = "Some answer."
+    generate_answer("What is FastAPI?", sample_chunks)
+    mock_client.models.generate_content.assert_called_once()
+
+
+@patch("app.services.llm.client")
+def test_generate_answer_raises_runtime_error_on_api_failure(
+    mock_client, sample_chunks
+):
+    mock_client.models.generate_content.side_effect = Exception("API unavailable")
+    with pytest.raises(RuntimeError):
+        generate_answer("What is FastAPI?", sample_chunks)
+
+
+@patch("app.services.llm.client")
+def test_generate_answer_empty_chunks(mock_client):
+    mock_client.models.generate_content.return_value.text = "I don't know."
+    answer = generate_answer("What is FastAPI?", [])
+    assert isinstance(answer, str)
