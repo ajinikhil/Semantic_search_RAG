@@ -17,3 +17,5 @@ The LLM generates a grounded answer and sends it back to you
 No guessing. No hallucinating facts that aren't in your documents.
 
 @claude is writing the pytests
+
+test the end points: `uvicorn app.main:app --reload`
