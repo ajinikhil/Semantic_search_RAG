@@ -15,3 +15,5 @@ Those chunks get sent to a local LLM (Ollama) along with your question
 The LLM generates a grounded answer and sends it back to you
 
 No guessing. No hallucinating facts that aren't in your documents.
+
+@claude is writing the pytests
