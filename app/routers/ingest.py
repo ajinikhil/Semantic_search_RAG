@@ -79,6 +79,8 @@ async def upload_document(file: UploadFile = File(...)):
         chunks_created = vectorstore.add_chunks(
             chunks=chunks, embeddings=embeddings, filename=file.filename
         )
+    except HTTPException:
+        raise
 
     except Exception as e:
 
