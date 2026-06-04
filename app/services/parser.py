@@ -1,5 +1,4 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pyxtxt import xtxt
 
 from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
@@ -19,6 +18,8 @@ def extract_text(document):
     Runtime error: if pyxtxt fails to extract text.
     """
     try:
+        from pyxtxt import xtxt
+
         return xtxt(document)
     except Exception as e:
         raise RuntimeError(f"error extracting text: {e}")
