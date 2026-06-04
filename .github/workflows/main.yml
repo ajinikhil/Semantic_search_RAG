@@ -20,7 +20,9 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    needs: lint               
+    needs: lint
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +33,7 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
-    needs: test          
+    needs: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,7 +44,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: security      
+    needs: security
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
