@@ -1,19 +1,41 @@
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 # ---------------------------------------------------------------------------
-# extract_text
+# Block pyxtxt (and its Pillow dependency) from ever really loading.
+# pyxtxt imports PIL.Image at the top of ocr_ollama.py; if Pillow is missing
+# that resolves to None and the module-level type annotation
+#   def _enhance_image(image: Image.Image, ...) -> Image.Image:
+# raises  AttributeError: 'NoneType' object has no attribute 'Image'
+# before any test code runs.
+#
+# Pre-seeding sys.modules with MagicMock stubs prevents the real packages
+# from being imported at all, so the crash never happens.
 # ---------------------------------------------------------------------------
-# `xtxt` is imported lazily inside the function body (`from pyxtxt import xtxt`),
-# so it is never bound as an attribute on app.services.parser.
-# The correct target is the *source* module: "pyxtxt.xtxt".
+
+# Stub out Pillow
+pil_stub = MagicMock()
+pil_stub.Image = MagicMock()
+sys.modules.setdefault("PIL", pil_stub)
+sys.modules.setdefault("PIL.Image", pil_stub.Image)
+
+# Stub out the whole pyxtxt package tree
+pyxtxt_stub = MagicMock()
+sys.modules.setdefault("pyxtxt", pyxtxt_stub)
+sys.modules.setdefault("pyxtxt.estrattori", MagicMock())
+sys.modules.setdefault("pyxtxt.estrattori.ocr_ollama", MagicMock())
+
+
+# ---------------------------------------------------------------------------
+# extract_text
 # ---------------------------------------------------------------------------
 
 
 class TestExtractText:
     def test_returns_extracted_text(self):
-        """Happy path: pyxtxt returns a string."""
+        """Happy path: pyxtxt.xtxt returns a string."""
         mock_document = MagicMock()
         expected_text = "Hello, world!"
 
@@ -25,7 +47,7 @@ class TestExtractText:
         assert result == expected_text
 
     def test_passes_document_to_xtxt(self):
-        """Ensures the document argument is forwarded to pyxtxt unchanged."""
+        """The document argument is forwarded to xtxt unchanged."""
         mock_document = MagicMock()
 
         with patch("pyxtxt.xtxt") as mock_xtxt:
@@ -37,15 +59,13 @@ class TestExtractText:
 
     def test_raises_runtime_error_when_xtxt_fails(self):
         """Any exception from pyxtxt is wrapped in a RuntimeError."""
-        mock_document = MagicMock()
-
         with patch("pyxtxt.xtxt", side_effect=Exception("parse failure")):
             from app.services.parser import extract_text
 
             with pytest.raises(
                 RuntimeError, match="error extracting text: parse failure"
             ):
-                extract_text(mock_document)
+                extract_text(MagicMock())
 
     def test_runtime_error_wraps_original_message(self):
         """RuntimeError message includes the original exception detail."""
@@ -111,7 +131,7 @@ class TestChunkText:
         """Text much longer than CHUNK_SIZE is split into multiple chunks."""
         from app.services.parser import chunk_text
 
-        long_text = "word " * 200  # well over CHUNK_SIZE
+        long_text = "word " * 200
         chunks = chunk_text(long_text)
 
         assert len(chunks) > 1
@@ -120,25 +140,19 @@ class TestChunkText:
         """No individual chunk exceeds CHUNK_SIZE characters."""
         from app.services.parser import chunk_text
 
-        long_text = "x" * 500
-        chunks = chunk_text(long_text)
+        chunks = chunk_text("x" * 500)
 
         for chunk in chunks:
             assert len(chunk) <= CHUNK_SIZE
 
     def test_chunks_cover_full_content(self):
-        """
-        With overlap the splitter may repeat characters across boundaries,
-        but the union of all chunks must contain every word of the original.
-        Checks that no content is silently dropped.
-        """
+        """No content is silently dropped across chunk boundaries."""
         from app.services.parser import chunk_text
 
         words = [f"word{i}" for i in range(200)]
-        original = " ".join(words)
-        chunks = chunk_text(original)
-
+        chunks = chunk_text(" ".join(words))
         reconstructed = "".join(chunks)
+
         for word in words:
             assert word in reconstructed
 
@@ -146,15 +160,13 @@ class TestChunkText:
         """Return type is always a list."""
         from app.services.parser import chunk_text
 
-        result = chunk_text("Some text.")
-        assert isinstance(result, list)
+        assert isinstance(chunk_text("Some text."), list)
 
     def test_empty_string_returns_empty_list(self):
         """Empty input produces no chunks."""
         from app.services.parser import chunk_text
 
-        result = chunk_text("")
-        assert result == []
+        assert chunk_text("") == []
 
     def test_raises_runtime_error_on_splitter_failure(self):
         """Exceptions from RecursiveCharacterTextSplitter
@@ -171,7 +183,7 @@ class TestChunkText:
             with pytest.raises(
                 RuntimeError, match="error chunking text: splitter boom"
             ):
-                chunk_text("Some text that triggers the failure.")
+                chunk_text("Some text.")
 
     def test_splitter_initialised_with_config_values(self):
         """RecursiveCharacterTextSplitter receives
@@ -190,10 +202,7 @@ class TestChunkText:
         )
 
     def test_chunk_overlap_creates_shared_content(self):
-        """
-        With overlap > 0 adjacent chunks should share a substring at their
-        boundary (assuming the text is long enough to force a split).
-        """
+        """Adjacent chunks share content at their boundary when overlap > 0."""
         from app.services.parser import chunk_text
 
         sentence = "The quick brown fox jumps over the lazy dog. " * 20
