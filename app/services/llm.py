@@ -2,7 +2,9 @@ from google import genai
 
 from app.config import MODEL_NAME
 
-client = genai.Client()
+
+def get_client():
+    return genai.Client()
 
 
 def build_prompt(question, chunks):
@@ -65,6 +67,8 @@ def generate_answer(question, chunks):
     """
     try:
         prompt = build_prompt(question, chunks)
+
+        client = get_client()
 
         response = client.models.generate_content(
             model=MODEL_NAME,
