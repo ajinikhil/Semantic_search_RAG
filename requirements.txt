@@ -6,3 +6,5 @@ pydantic
 fastapi
 sentence_transformers
 google-genai
+pytest
+pytest-cov
