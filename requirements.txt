@@ -1,7 +1,7 @@
 langchain-text-splitters
 libmagic
 pyxtxt[pdf,docx,presentation,txt]
-chromadb
+chromadb>=1.5.9
 pydantic
 fastapi
 sentence_transformers
