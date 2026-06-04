@@ -5,6 +5,8 @@ import pytest
 from app.models.schemas import SourceChunk
 from app.services.llm import build_prompt, generate_answer
 
+# ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def sample_chunks():
@@ -36,90 +38,122 @@ def single_chunk():
     ]
 
 
-def test_prompt_contains_question(sample_chunks):
-    prompt = build_prompt("What is FastAPI?", sample_chunks)
-    assert "What is FastAPI?" in prompt
+@pytest.fixture
+def mock_client():
+    """
+    Patch get_client() so no real Gemini API call is made.
+
+    get_client() is called inside generate_answer() — patching it
+    means mock_client.return_value is the client instance used
+    inside the function.
+    """
+    with patch("app.services.llm.get_client") as mock:
+        yield mock
 
 
-def test_prompt_contains_chunk_text(sample_chunks):
-    prompt = build_prompt("What is FastAPI?", sample_chunks)
-    assert "FastAPI is a modern web framework." in prompt
-    assert "ChromaDB is a vector database." in prompt
+# ══════════════════════════════════════════════════════════════════════════════
+#  build_prompt
+# ══════════════════════════════════════════════════════════════════════════════
 
 
-def test_prompt_contains_source_filenames(sample_chunks):
-    prompt = build_prompt("What is FastAPI?", sample_chunks)
-    assert "doc1.pdf" in prompt
-    assert "doc2.pdf" in prompt
+class TestBuildPrompt:
+    """Tests for the build_prompt function."""
+
+    def test_prompt_returns_string(self, sample_chunks):
+        """build_prompt should always return a string."""
+        prompt = build_prompt("What is FastAPI?", sample_chunks)
+        assert isinstance(prompt, str)
+
+    def test_prompt_contains_question(self, sample_chunks):
+        """build_prompt should include the user question in the prompt."""
+        prompt = build_prompt("What is FastAPI?", sample_chunks)
+        assert "What is FastAPI?" in prompt
+
+    def test_prompt_contains_chunk_text(self, sample_chunks):
+        """build_prompt should include the text of every chunk."""
+        prompt = build_prompt("What is FastAPI?", sample_chunks)
+        assert "FastAPI is a modern web framework." in prompt
+        assert "ChromaDB is a vector database." in prompt
+
+    def test_prompt_contains_source_filenames(self, sample_chunks):
+        """build_prompt should include the source filename of every chunk."""
+        prompt = build_prompt("What is FastAPI?", sample_chunks)
+        assert "doc1.pdf" in prompt
+        assert "doc2.pdf" in prompt
+
+    def test_prompt_contains_chunk_index(self, sample_chunks):
+        """build_prompt should include the chunk index of every chunk."""
+        prompt = build_prompt("What is FastAPI?", sample_chunks)
+        assert "chunk 0" in prompt
+        assert "chunk 1" in prompt
+
+    def test_prompt_single_chunk(self, single_chunk):
+        """build_prompt should work correctly with a single chunk."""
+        prompt = build_prompt("What is Python?", single_chunk)
+        assert "Python is a programming language." in prompt
+
+    def test_prompt_empty_chunks(self):
+        """build_prompt should still return a string when chunks is empty."""
+        prompt = build_prompt("What is FastAPI?", [])
+        assert isinstance(prompt, str)
+
+    def test_prompt_empty_question(self, sample_chunks):
+        """build_prompt should still return a string when question is empty."""
+        prompt = build_prompt("", sample_chunks)
+        assert isinstance(prompt, str)
+
+    def test_prompt_raises_runtime_error_on_invalid_chunks(self):
+        """build_prompt should raise RuntimeError if chunks are malformed."""
+        with pytest.raises(RuntimeError):
+            build_prompt("What is FastAPI?", ["invalid", "chunks"])
 
 
-def test_prompt_contains_chunk_index(sample_chunks):
-    prompt = build_prompt("What is FastAPI?", sample_chunks)
-    assert "chunk 0" in prompt
-    assert "chunk 1" in prompt
+# ══════════════════════════════════════════════════════════════════════════════
+#  generate_answer
+# ══════════════════════════════════════════════════════════════════════════════
 
 
-def test_prompt_returns_string(sample_chunks):
-    prompt = build_prompt("What is FastAPI?", sample_chunks)
-    assert isinstance(prompt, str)
+class TestGenerateAnswer:
+    """Tests for the generate_answer function."""
 
+    def test_generate_answer_returns_string(self, mock_client, sample_chunks):
+        """generate_answer should return a string."""
+        mock_client.return_value.models.generate_content.return_value.text = (
+            "FastAPI is a web framework."
+        )
+        answer = generate_answer("What is FastAPI?", sample_chunks)
+        assert isinstance(answer, str)
 
-def test_prompt_single_chunk(single_chunk):
-    prompt = build_prompt("What is Python?", single_chunk)
-    assert "Python is a programming language." in prompt
+    def test_generate_answer_returns_llm_response(self, mock_client, sample_chunks):
+        """generate_answer should return exactly what the LLM responds with."""
+        mock_client.return_value.models.generate_content.return_value.text = (
+            "FastAPI is a web framework."
+        )
+        answer = generate_answer("What is FastAPI?", sample_chunks)
+        assert answer == "FastAPI is a web framework."
 
-
-def test_prompt_empty_chunks():
-    prompt = build_prompt("What is FastAPI?", [])
-    assert isinstance(prompt, str)
-
-
-def test_prompt_empty_question(sample_chunks):
-    prompt = build_prompt("", sample_chunks)
-    assert isinstance(prompt, str)
-
-
-def test_prompt_raises_runtime_error_on_invalid_chunks():
-    with pytest.raises(RuntimeError):
-        build_prompt("What is FastAPI?", ["invalid", "chunks"])
-
-
-@patch("app.services.llm.client")
-def test_generate_answer_returns_string(mock_client, sample_chunks):
-    mock_client.models.generate_content.return_value.text = (
-        "FastAPI is a web framework."
-    )
-    answer = generate_answer("What is FastAPI?", sample_chunks)
-    assert isinstance(answer, str)
-
-
-@patch("app.services.llm.client")
-def test_generate_answer_returns_llm_response(mock_client, sample_chunks):
-    mock_client.models.generate_content.return_value.text = (
-        "FastAPI is a web framework."
-    )
-    answer = generate_answer("What is FastAPI?", sample_chunks)
-    assert answer == "FastAPI is a web framework."
-
-
-@patch("app.services.llm.client")
-def test_generate_answer_calls_api_once(mock_client, sample_chunks):
-    mock_client.models.generate_content.return_value.text = "Some answer."
-    generate_answer("What is FastAPI?", sample_chunks)
-    mock_client.models.generate_content.assert_called_once()
-
-
-@patch("app.services.llm.client")
-def test_generate_answer_raises_runtime_error_on_api_failure(
-    mock_client, sample_chunks
-):
-    mock_client.models.generate_content.side_effect = Exception("API unavailable")
-    with pytest.raises(RuntimeError):
+    def test_generate_answer_calls_api_once(self, mock_client, sample_chunks):
+        """generate_answer should call the Gemini API exactly once."""
+        mock_client.return_value.models.generate_content.return_value.text = (
+            "Some answer."
+        )
         generate_answer("What is FastAPI?", sample_chunks)
+        mock_client.return_value.models.generate_content.assert_called_once()
 
+    def test_generate_answer_raises_runtime_error_on_api_failure(
+        self, mock_client, sample_chunks
+    ):
+        """generate_answer should raise RuntimeError if the API call fails."""
+        mock_client.return_value.models.generate_content.side_effect = Exception(
+            "API unavailable"
+        )
+        with pytest.raises(RuntimeError):
+            generate_answer("What is FastAPI?", sample_chunks)
 
-@patch("app.services.llm.client")
-def test_generate_answer_empty_chunks(mock_client):
-    mock_client.models.generate_content.return_value.text = "I don't know."
-    answer = generate_answer("What is FastAPI?", [])
-    assert isinstance(answer, str)
+    def test_generate_answer_empty_chunks(self, mock_client):
+        """generate_answer should still call the LLM even with no chunks."""
+        mock_client.return_value.models.generate_content.return_value.text = (
+            "I don't know."
+        )
+        answer = generate_answer("What is FastAPI?", [])
+        assert isinstance(answer, str)
