@@ -2,7 +2,14 @@ from sentence_transformers import SentenceTransformer
 
 from app.config import EMBEDDING_MODEL
 
-model = SentenceTransformer(EMBEDDING_MODEL)
+_model = None
+
+
+def get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer(EMBEDDING_MODEL)
+    return _model
 
 
 def embed_text(text):
@@ -19,11 +26,11 @@ def embed_text(text):
     Raises:
     Runtime error: if the embedding model fails to encode the texts
     """
-    if not text or not text.strip():
+    if not text:
         raise ValueError("text cannot be empty")
 
     try:
-        embeddings = model.encode(text, normalize_embeddings=True)
+        embeddings = get_model().encode(text, normalize_embeddings=True)
         return embeddings.tolist()
     except Exception as e:
         raise RuntimeError(f"Error encoding text: {e}")
@@ -43,8 +50,10 @@ def embed_query(query):
     Raises:
     Runtime error: if the embedding model fails to encode the query
     """
+    if not query or not query.strip():
+        raise ValueError("query cannot be empty")
     try:
-        embedding = model.encode([query], normalize_embeddings=True)
+        embedding = get_model().encode([query], normalize_embeddings=True)
         return embedding[0].tolist()
     except Exception as e:
         raise RuntimeError(f"Error encoding query: {e}")
