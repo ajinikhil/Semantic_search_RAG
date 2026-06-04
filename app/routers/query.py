@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import QueryRequest, QueryResponse, SourceChunk
 from app.services.embedder import embed_query
@@ -24,25 +24,29 @@ async def query(request: QueryRequest):
         QueryResponse: AI-generaterd answer using the source chunks
                         and the sources
     """
-    query_vector = embed_query(request.query)
+    try:
 
-    raw_results = search(query_vector)
+        query_vector = embed_query(request.query)
 
-    sources = []
-    for doc, meta, distance in zip(
-        raw_results["documents"][0],
-        raw_results["metadatas"][0],
-        raw_results["distances"][0],
-    ):
-        sources.append(
-            SourceChunk(
-                text=doc,
-                file_name=meta["filename"],
-                chunk_index=meta["chunk_index"],
-                similarity_score=round(1 - distance / 2, 4),
+        raw_results = search(query_vector)
+
+        sources = []
+        for doc, meta, distance in zip(
+            raw_results["documents"][0],
+            raw_results["metadatas"][0],
+            raw_results["distances"][0],
+        ):
+            sources.append(
+                SourceChunk(
+                    text=doc,
+                    file_name=meta["filename"],
+                    chunk_index=meta["chunk_index"],
+                    similarity_score=round(1 - distance / 2, 4),
+                )
             )
-        )
 
-    answer = generate_answer(request.query, sources)
+        answer = generate_answer(request.query, sources)
 
-    return QueryResponse(query=request.query, response=answer, sources=sources)
+        return QueryResponse(query=request.query, response=answer, sources=sources)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
