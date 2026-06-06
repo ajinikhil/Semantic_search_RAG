@@ -1,13 +1,18 @@
-langchain-text-splitters
-libmagic
-pyxtxt[pdf,docx,presentation,txt]
-chromadb>=1.5.9
-pydantic
+# Runtime
 fastapi
+uvicorn
+pydantic
+python-dotenv
+python-multipart
 sentence_transformers
 google-genai
+langchain-text-splitters
+chromadb>=1.5.9
+pyxtxt[pdf,docx,presentation,txt]
+Pillow>=10.0.0
+
+# Testing
 pytest
 pytest-cov
-Pillow>=10.0.0
-python-multipart
 pytest-asyncio
+httpx
