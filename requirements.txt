@@ -10,3 +10,4 @@ pytest
 pytest-cov
 Pillow>=10.0.0
 python-multipart
+pytest-asyncio
