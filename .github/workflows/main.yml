@@ -42,7 +42,10 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install pip-audit
-      - run: pip-audit -r requirements.txt
+        # CVE-2026-45829 ("ChromaToast"): affects chromadb 1.0.0-1.5.8.
+        # 1.5.9 (pinned) is the patched release; the advisory DB has not yet
+        # marked it as fixed. Remove this ignore once the DB is updated.
+      - run: pip-audit -r requirements.txt --ignore-vuln CVE-2026-45829
 
   build:
     runs-on: ubuntu-latest
