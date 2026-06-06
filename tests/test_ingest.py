@@ -1,44 +1,50 @@
+"""
+Tests for the ingestion endpoints in app/routers/ingest.py:
+  POST   /ingest/upload              → upload and ingest a document
+  GET    /ingest/documents           → list stored documents
+  DELETE /ingest/documents/{filename} → delete a document
+
+Uses httpx.AsyncClient (async tests) with mocked ChromaDB and service calls
+so no real vector-DB writes or file-system side-effects occur.
+"""
+
 import io
 from unittest.mock import MagicMock, patch
 
 import pytest
+import pytest_asyncio
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from app.routers.ingest import router
 
-# ── App fixture ───────────────────────────────────────────────────────────────
+# ── App / client fixture ──────────────────────────────────────────────────────
 
 
-@pytest.fixture
-def app():
-    """Create a minimal FastAPI app with only the ingest router mounted."""
-    application = FastAPI()
-    application.include_router(router)
-    return application
+@pytest_asyncio.fixture
+async def client():
+    """AsyncClient wired to a minimal app containing only the ingest router."""
+    app = FastAPI()
+    app.include_router(router)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
+        yield ac
 
 
-@pytest.fixture
-def client(app):
-    """Return a TestClient that makes requests against the ingest router."""
-    return TestClient(app)
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Helper ────────────────────────────────────────────────────────────────────
 
 
 def make_upload_file(filename: str, content: bytes = b"sample text content"):
-    """
-    Build a multipart file payload for use with TestClient.
-
-    Args:
-        filename: The name of the file being uploaded.
-        content:  Raw bytes to use as the file body.
-
-    Returns:
-        A dict suitable for passing as `files=` in TestClient.post().
-    """
+    """Build a multipart file payload suitable for AsyncClient.post(files=...)."""
     return {"file": (filename, io.BytesIO(content), "application/octet-stream")}
+
+
+# ── Shared mock return values ─────────────────────────────────────────────────
+
+_FAKE_EMBEDDINGS = [[0.1] * 384] * 3
+_FAKE_CHUNKS = ["chunk one", "chunk two", "chunk three"]
+_FAKE_TEXT = "Extracted document text."
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -47,176 +53,266 @@ def make_upload_file(filename: str, content: bytes = b"sample text content"):
 
 
 class TestUploadDocument:
-    """Tests for the POST /ingest/upload endpoint."""
+    """Tests for POST /ingest/upload."""
 
-    @patch("app.routers.ingest.vectorstore.add_chunks", return_value=10)
-    @patch("app.routers.ingest.embedder.embed_text", return_value=[[0.1] * 384] * 5)
-    @patch("app.routers.ingest.parser.chunk_text", return_value=["chunk1", "chunk2"])
-    @patch("app.routers.ingest.parser.extract_text", return_value="Some extracted text")
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_valid_pdf_returns_200(
-        self,
-        mock_copy,
-        mock_extract,
-        mock_chunk,
-        mock_embed,
-        mock_add,
-        client,
-    ):
+    @pytest.mark.asyncio
+    async def test_upload_valid_pdf_returns_200(self, client):
         """
         Given a valid PDF file,
         When it is uploaded,
         Then the response is 200 with filename and chunk count.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("document.pdf"),
-        )
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch("app.routers.ingest.vectorstore.add_chunks", return_value=3),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("document.pdf")
+            )
 
         assert response.status_code == 200
         body = response.json()
         assert body["filename"] == "document.pdf"
-        assert body["chunks_created"] == 10
+        assert body["chunks_created"] == 3
         assert "successfully ingested" in body["message"]
 
-    @patch("app.routers.ingest.vectorstore.add_chunks", return_value=5)
-    @patch("app.routers.ingest.embedder.embed_text", return_value=[[0.1] * 384] * 3)
-    @patch("app.routers.ingest.parser.chunk_text", return_value=["chunk1"])
-    @patch("app.routers.ingest.parser.extract_text", return_value="Some extracted text")
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_valid_txt_returns_200(
-        self,
-        mock_copy,
-        mock_extract,
-        mock_chunk,
-        mock_embed,
-        mock_add,
-        client,
-    ):
+    @pytest.mark.asyncio
+    async def test_upload_valid_txt_returns_200(self, client):
         """
         Given a valid TXT file,
         When it is uploaded,
-        Then the response is 200.
+        Then the response is 200 with the correct filename.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("notes.txt", b"hello world"),
-        )
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch("app.routers.ingest.vectorstore.add_chunks", return_value=3),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("notes.txt", b"hello world")
+            )
+
         assert response.status_code == 200
         assert response.json()["filename"] == "notes.txt"
 
-    @patch("app.routers.ingest.vectorstore.add_chunks", return_value=8)
-    @patch("app.routers.ingest.embedder.embed_text", return_value=[[0.1] * 384] * 3)
-    @patch("app.routers.ingest.parser.chunk_text", return_value=["chunk1"])
-    @patch("app.routers.ingest.parser.extract_text", return_value="Some extracted text")
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_valid_docx_returns_200(
-        self,
-        mock_copy,
-        mock_extract,
-        mock_chunk,
-        mock_embed,
-        mock_add,
-        client,
-    ):
+    @pytest.mark.asyncio
+    async def test_upload_valid_docx_returns_200(self, client):
         """
         Given a valid DOCX file,
         When it is uploaded,
-        Then the response is 200.
+        Then the response is 200 with the correct filename.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("report.docx", b"docx bytes"),
-        )
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch("app.routers.ingest.vectorstore.add_chunks", return_value=3),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("report.docx", b"docx bytes")
+            )
+
         assert response.status_code == 200
         assert response.json()["filename"] == "report.docx"
 
-    def test_upload_unsupported_extension_returns_400(self, client):
+    @pytest.mark.asyncio
+    async def test_upload_unsupported_extension_returns_400(self, client):
         """
-        Given a file with an unsupported extension (e.g. .xlsx),
+        Given a file with an unsupported extension (.xlsx),
         When it is uploaded,
         Then a 400 error is returned with a descriptive message.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("spreadsheet.xlsx"),
+        response = await client.post(
+            "/ingest/upload", files=make_upload_file("spreadsheet.xlsx")
         )
+
         assert response.status_code == 400
         assert "Unsupported file type" in response.json()["detail"]
 
-    def test_upload_no_file_returns_422(self, client):
+    @pytest.mark.asyncio
+    async def test_upload_csv_extension_returns_400(self, client):
+        """
+        Given a .csv file (not in the allowed set),
+        When it is uploaded,
+        Then a 400 error is returned.
+        """
+        response = await client.post(
+            "/ingest/upload", files=make_upload_file("data.csv")
+        )
+
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_upload_no_file_returns_422(self, client):
         """
         Given no file is attached to the request,
         When the endpoint is called,
         Then a 422 Unprocessable Entity is returned.
         """
-        response = client.post("/ingest/upload")
+        response = await client.post("/ingest/upload")
+
         assert response.status_code == 422
 
-    @patch("app.routers.ingest.parser.extract_text", return_value="   ")
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_empty_document_returns_422(self, mock_copy, mock_extract, client):
+    @pytest.mark.asyncio
+    async def test_upload_empty_document_returns_422(self, client):
         """
         Given a file that produces no extractable text (blank or scanned),
         When it is uploaded,
-        Then a 422 error is returned indicating no text was found.
+        Then a 422 error is returned indicating no text could be extracted.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("empty.pdf"),
-        )
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value="   "),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("empty.pdf")
+            )
+
         assert response.status_code == 422
         assert "Could not extract any text" in response.json()["detail"]
 
-    @patch(
-        "app.routers.ingest.parser.extract_text", side_effect=Exception("parse error")
-    )
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_processing_error_returns_500(self, mock_copy, mock_extract, client):
+    @pytest.mark.asyncio
+    async def test_upload_parser_failure_returns_500(self, client):
         """
         Given the parser raises an unexpected exception,
         When a file is uploaded,
         Then a 500 error is returned with the error message.
         """
-        response = client.post(
-            "/ingest/upload",
-            files=make_upload_file("broken.pdf"),
-        )
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch(
+                "app.routers.ingest.parser.extract_text",
+                side_effect=Exception("parse error"),
+            ),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("broken.pdf")
+            )
+
         assert response.status_code == 500
         assert "Failed to process document" in response.json()["detail"]
 
-    @patch("app.routers.ingest.vectorstore.add_chunks", return_value=3)
-    @patch("app.routers.ingest.embedder.embed_text", return_value=[[0.1] * 384])
-    @patch("app.routers.ingest.parser.chunk_text", return_value=["chunk1"])
-    @patch("app.routers.ingest.parser.extract_text", return_value="Some text")
-    @patch("app.routers.ingest.shutil.copyfileobj")
-    @patch("builtins.open", MagicMock())
-    def test_upload_calls_services_in_correct_order(
-        self,
-        mock_copy,
-        mock_extract,
-        mock_chunk,
-        mock_embed,
-        mock_add,
-        client,
-    ):
+    @pytest.mark.asyncio
+    async def test_upload_embedder_failure_returns_500(self, client):
+        """
+        Given the embedder raises an unexpected exception after successful parsing,
+        When a file is uploaded,
+        Then a 500 error is returned.
+        """
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text",
+                side_effect=RuntimeError("model unavailable"),
+            ),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("doc.pdf")
+            )
+
+        assert response.status_code == 500
+        assert "Failed to process document" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_upload_vectorstore_failure_returns_500(self, client):
+        """
+        Given ChromaDB raises an error when storing chunks,
+        When a file is uploaded,
+        Then a 500 error is returned.
+        """
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch(
+                "app.routers.ingest.vectorstore.add_chunks",
+                side_effect=RuntimeError("disk full"),
+            ),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("doc.pdf")
+            )
+
+        assert response.status_code == 500
+        assert "Failed to process document" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_upload_calls_services_in_correct_order(self, client):
         """
         Given a valid file,
         When it is uploaded,
         Then parser, embedder and vectorstore are each called exactly once
-        in the correct order (extract → chunk → embed → store).
+        in the correct order: extract → chunk → embed → store.
         """
-        client.post("/ingest/upload", files=make_upload_file("doc.pdf"))
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch(
+                "app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT
+            ) as mock_extract,
+            patch(
+                "app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS
+            ) as mock_chunk,
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ) as mock_embed,
+            patch(
+                "app.routers.ingest.vectorstore.add_chunks", return_value=3
+            ) as mock_add,
+        ):
+            await client.post("/ingest/upload", files=make_upload_file("doc.pdf"))
 
         mock_extract.assert_called_once()
         mock_chunk.assert_called_once()
         mock_embed.assert_called_once()
         mock_add.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_upload_response_message_contains_filename(self, client):
+        """
+        Given a successful upload,
+        When the response is returned,
+        Then the success message contains the original filename.
+        """
+        with (
+            patch("builtins.open", MagicMock()),
+            patch("app.routers.ingest.shutil.copyfileobj"),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch("app.routers.ingest.vectorstore.add_chunks", return_value=3),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("myreport.pdf")
+            )
+
+        assert "myreport.pdf" in response.json()["message"]
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -225,19 +321,20 @@ class TestUploadDocument:
 
 
 class TestListDocuments:
-    """Tests for the GET /ingest/documents endpoint."""
+    """Tests for GET /ingest/documents."""
 
-    @patch(
-        "app.routers.ingest.vectorstore.get_stats",
-        return_value={"total_chunks": 42, "documents": ["a.pdf", "b.txt"]},
-    )
-    def test_list_documents_returns_200(self, mock_stats, client):
+    @pytest.mark.asyncio
+    async def test_list_documents_returns_200(self, client):
         """
         Given documents exist in the vector store,
         When the list endpoint is called,
         Then a 200 response is returned with chunk count and document names.
         """
-        response = client.get("/ingest/documents")
+        with patch(
+            "app.routers.ingest.vectorstore.get_stats",
+            return_value={"total_chunks": 42, "documents": ["a.pdf", "b.txt"]},
+        ):
+            response = await client.get("/ingest/documents")
 
         assert response.status_code == 200
         body = response.json()
@@ -245,22 +342,40 @@ class TestListDocuments:
         assert "a.pdf" in body["documents"]
         assert "b.txt" in body["documents"]
 
-    @patch(
-        "app.routers.ingest.vectorstore.get_stats",
-        return_value={"total_chunks": 0, "documents": []},
-    )
-    def test_list_documents_empty_store(self, mock_stats, client):
+    @pytest.mark.asyncio
+    async def test_list_documents_empty_store_returns_200(self, client):
         """
         Given no documents have been uploaded,
         When the list endpoint is called,
-        Then a 200 response is returned with zero chunks and empty list.
+        Then a 200 response is returned with zero chunks and an empty list.
         """
-        response = client.get("/ingest/documents")
+        with patch(
+            "app.routers.ingest.vectorstore.get_stats",
+            return_value={"total_chunks": 0, "documents": []},
+        ):
+            response = await client.get("/ingest/documents")
 
         assert response.status_code == 200
         body = response.json()
         assert body["total_chunks"] == 0
         assert body["documents"] == []
+
+    @pytest.mark.asyncio
+    async def test_list_documents_schema_fields_present(self, client):
+        """
+        Given a non-empty vector store,
+        When the list endpoint is called,
+        Then the response body contains both total_chunks and documents fields.
+        """
+        with patch(
+            "app.routers.ingest.vectorstore.get_stats",
+            return_value={"total_chunks": 5, "documents": ["x.pdf"]},
+        ):
+            response = await client.get("/ingest/documents")
+
+        body = response.json()
+        assert "total_chunks" in body
+        assert "documents" in body
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -269,16 +384,19 @@ class TestListDocuments:
 
 
 class TestDeleteDocument:
-    """Tests for the DELETE /ingest/documents/{filename} endpoint."""
+    """Tests for DELETE /ingest/documents/{filename}."""
 
-    @patch("app.routers.ingest.vectorstore.delete_by_file_name", return_value=7)
-    def test_delete_existing_document_returns_200(self, mock_delete, client):
+    @pytest.mark.asyncio
+    async def test_delete_existing_document_returns_200(self, client):
         """
         Given a document that exists in the vector store,
         When a delete request is made for that filename,
         Then a 200 response is returned with the number of chunks deleted.
         """
-        response = client.delete("/ingest/documents/report.pdf")
+        with patch(
+            "app.routers.ingest.vectorstore.delete_by_file_name", return_value=7
+        ):
+            response = await client.delete("/ingest/documents/report.pdf")
 
         assert response.status_code == 200
         body = response.json()
@@ -286,24 +404,46 @@ class TestDeleteDocument:
         assert body["chunks_deleted"] == 7
         assert "deleted successfully" in body["message"]
 
-    @patch("app.routers.ingest.vectorstore.delete_by_file_name", return_value=0)
-    def test_delete_nonexistent_document_returns_404(self, mock_delete, client):
+    @pytest.mark.asyncio
+    async def test_delete_nonexistent_document_returns_404(self, client):
         """
-        Given a filename that does not exist in the vector store,
+        Given a filename that does not exist in the vector store
+        (delete_by_file_name returns 0),
         When a delete request is made,
         Then a 404 error is returned with a descriptive message.
         """
-        response = client.delete("/ingest/documents/ghost.pdf")
+        with patch(
+            "app.routers.ingest.vectorstore.delete_by_file_name", return_value=0
+        ):
+            response = await client.delete("/ingest/documents/ghost.pdf")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"]
 
-    @patch("app.routers.ingest.vectorstore.delete_by_file_name", return_value=3)
-    def test_delete_calls_vectorstore_with_correct_filename(self, mock_delete, client):
+    @pytest.mark.asyncio
+    async def test_delete_calls_vectorstore_with_correct_filename(self, client):
         """
         Given a valid delete request,
         When the endpoint is called,
         Then the vectorstore is called with exactly the filename from the URL.
         """
-        client.delete("/ingest/documents/my_doc.pdf")
+        with patch(
+            "app.routers.ingest.vectorstore.delete_by_file_name", return_value=3
+        ) as mock_delete:
+            await client.delete("/ingest/documents/my_doc.pdf")
+
         mock_delete.assert_called_once_with("my_doc.pdf")
+
+    @pytest.mark.asyncio
+    async def test_delete_url_encoded_filename(self, client):
+        """
+        Given a filename containing special characters (URL-encoded),
+        When a delete request is made,
+        Then the vectorstore receives the decoded filename.
+        """
+        with patch(
+            "app.routers.ingest.vectorstore.delete_by_file_name", return_value=2
+        ) as mock_delete:
+            await client.delete("/ingest/documents/my%20report.pdf")
+
+        mock_delete.assert_called_once_with("my report.pdf")
