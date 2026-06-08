@@ -86,7 +86,7 @@ def delete_by_file_name(filename):
         results = collection.get(where={"filename": filename})
         ids = results["ids"]
         if not ids:
-            raise RuntimeError(f"No document found with filename: {filename}")
+            return 0
         collection.delete(ids=ids)
 
         file_path = os.path.join(UPLOAD_DIR, filename)
