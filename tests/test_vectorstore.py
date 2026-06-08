@@ -208,17 +208,16 @@ class TestDeleteByFileName:
 
         mock_remove.assert_not_called()
 
-    def test_raises_runtime_error_when_no_chunks_found(self):
+    def test_returns_zero_when_no_chunks_found(self):
         """
-        If ``collection.get`` returns an empty ID list, a ``RuntimeError``
-        must be raised mentioning the filename.
+        If ``collection.get`` returns an empty ID list, ``delete_by_file_name``
+        must return 0 so the router can raise a 404.
         """
         _mock_collection.get.return_value = {"ids": []}
 
-        with pytest.raises(
-            RuntimeError, match="No document found with filename: missing.pdf"
-        ):
-            chroma_service.delete_by_file_name("missing.pdf")
+        result = chroma_service.delete_by_file_name("missing.pdf")
+
+        assert result == 0
 
     def test_raises_runtime_error_on_collection_error(self):
         """
