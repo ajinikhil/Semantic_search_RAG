@@ -9,6 +9,8 @@ from app.services import embedder, parser, vectorstore
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
+Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+
 
 @router.post("/upload", response_model=IngestResponse)
 async def upload_document(file: UploadFile = File(...)):
@@ -55,7 +57,10 @@ async def upload_document(file: UploadFile = File(...)):
             ),
         )
 
-    file_path = Path(UPLOAD_DIR) / file.filename
+    safe_name = Path(file.filename).name
+    file_path = (Path(UPLOAD_DIR) / safe_name).resolve()
+    if not str(file_path).startswith(str(Path(UPLOAD_DIR).resolve())):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
