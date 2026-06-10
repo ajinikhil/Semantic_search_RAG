@@ -42,11 +42,14 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - run: pip install pip-audit
-        # CVE-2026-45829 ("ChromaToast"): affects chromadb 1.0.0-1.5.8.
-        # 1.5.9 (pinned) is the patched release; the advisory DB has not yet
-        # marked it as fixed. Remove this ignore once the DB is updated.
-      - run: pip-audit -r requirements.txt --ignore-vuln CVE-2026-45829 # There are no updates currently
-      - run: pip-audit -r requirements.txt --ignore-vuln CVE-2025-3000 # There are no updates currently
+        # No fixed releases exist yet for either CVE — when patches ship,
+        # bump the package instead of keeping the ignore:
+        # - CVE-2026-45829 ("ChromaToast", chromadb): pre-auth RCE in the
+        #   Chroma HTTP server. We only use the embedded PersistentClient,
+        #   so the vulnerable server is never exposed.
+        # - CVE-2025-3000 (torch, via sentence-transformers): local-only
+        #   torch.jit.script segfault; we never script untrusted code.
+      - run: pip-audit -r requirements.txt --ignore-vuln CVE-2026-45829 --ignore-vuln CVE-2025-3000
 
   build:
     runs-on: ubuntu-latest
