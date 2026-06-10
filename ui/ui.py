@@ -89,10 +89,13 @@ with st.sidebar:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if message.get("sources"):
+        if "sources" in message:
             with st.expander("Sources"):
                 for src in message["sources"]:
-                    st.markdown(f"**{src['file_name']}**\n\n> {src['text']}")
+                    st.markdown(
+                        f"**{src['file_name']}** — chunk {src['chunk_index']} "
+                        f"(score: {src['similarity_score']})\n\n> {src['text']}"
+                    )
 
 # --- Phase 2: process pending query while input is disabled ---
 if st.session_state.thinking:
@@ -115,8 +118,12 @@ if st.session_state.thinking:
                     if sources:
                         with st.expander("Sources"):
                             for src in sources:
+                                name = src["file_name"]
+                                idx = src["chunk_index"]
+                                score = src["similarity_score"]
                                 st.markdown(
-                                    f"**{src['file_name']}**\n\n> {src['text']}"
+                                    f"**{name}** — chunk {idx} "
+                                    f"(score: {score})\n\n> {src['text']}"
                                 )
                     st.session_state.messages.append(
                         {"role": "assistant", "content": answer, "sources": sources}
