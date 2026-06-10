@@ -21,36 +21,41 @@ if "uploader_key" not in st.session_state:
 # --- Sidebar: document upload + document list ---
 with st.sidebar:
     st.header("Upload Document")
-    uploaded_file = st.file_uploader(
-        "Choose a file (PDF, DOCX, TXT)",
+    uploaded_files = st.file_uploader(
+        "Choose files (PDF, DOCX, TXT)",
         type=["pdf", "docx", "txt"],
+        accept_multiple_files=True,
         key=f"uploader_{st.session_state.uploader_key}",
     )
-    if uploaded_file is not None:
+    if uploaded_files:
         if st.button("upload"):
-            with st.spinner("Ingesting..."):
-                try:
-                    resp = requests.post(
-                        f"{BASE_URL}/ingest/upload",
-                        files={
-                            "file": (
-                                uploaded_file.name,
-                                uploaded_file,
-                                uploaded_file.type,
+            total_chunks = 0
+            errors = []
+            with st.spinner(f"Ingesting {len(uploaded_files)} file(s)..."):
+                for f in uploaded_files:
+                    try:
+                        resp = requests.post(
+                            f"{BASE_URL}/ingest/upload",
+                            files={"file": (f.name, f, f.type)},
+                            timeout=60,
+                        )
+                        if resp.ok:
+                            total_chunks += resp.json()["chunks_created"]
+                        else:
+                            errors.append(
+                                f"{f.name}: " + resp.json().get("detail", "failed")
                             )
-                        },
-                        timeout=60,
-                    )
-                    if resp.ok:
-                        data = resp.json()
-                        st.success(data["message"])
-                        st.caption(f"{data['chunks_created']} chunks created")
-                        st.session_state.uploader_key += 1
-                        st.rerun()
-                    else:
-                        st.error(resp.json().get("detail", "Upload failed"))
-                except requests.ConnectionError:
-                    st.error("Cannot reach the backend. Is the server running?")
+                    except requests.ConnectionError:
+                        errors.append(f"{f.name}: backend unreachable")
+            if total_chunks:
+                st.success(
+                    f"""{len(uploaded_files)} file(s) ingested
+                      — {total_chunks} chunks created"""
+                )
+            for err in errors:
+                st.error(err)
+            st.session_state.uploader_key += 1
+            st.rerun()
 
     st.divider()
     st.header("Documents")
@@ -84,13 +89,10 @@ with st.sidebar:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "sources" in message:
+        if message.get("sources"):
             with st.expander("Sources"):
                 for src in message["sources"]:
-                    st.markdown(
-                        f"**{src['file_name']}** — chunk {src['chunk_index']} "
-                        f"(score: {src['similarity_score']})\n\n> {src['text']}"
-                    )
+                    st.markdown(f"**{src['file_name']}**\n\n> {src['text']}")
 
 # --- Phase 2: process pending query while input is disabled ---
 if st.session_state.thinking:
@@ -113,12 +115,8 @@ if st.session_state.thinking:
                     if sources:
                         with st.expander("Sources"):
                             for src in sources:
-                                name = src["file_name"]
-                                idx = src["chunk_index"]
-                                score = src["similarity_score"]
                                 st.markdown(
-                                    f"**{name}** — chunk {idx} "
-                                    f"(score: {score})\n\n> {src['text']}"
+                                    f"**{src['file_name']}**\n\n> {src['text']}"
                                 )
                     st.session_state.messages.append(
                         {"role": "assistant", "content": answer, "sources": sources}
