@@ -1,13 +1,13 @@
 # Semantic Search Engine
 
 > [!IMPORTANT]
-> currently in active development
+> currently in active development : )
 
 A search engine which provides answers only from the the documents you provide.
 
-> For simplicity and faster development the project is currenly using Gemini.
-> The main goal of this system is to keep your files private and ask questions about them without any data leaving your machine
-> No hallucinating or guessing. if the answer is not in the context provided, the LLM will indicate the answer is not in the documents
+> *  For simplicity and faster development the project is currenly using Gemini.
+> * The main goal of this system is to keep your files private and ask questions about them without any data leaving your machine.
+> * No hallucinating or guessing. if the answer is not in the context provided, the LLM will indicate the answer is not in the documents.
 ---
 
 ## How it works
@@ -33,5 +33,5 @@ The pipeline runs on every push to main and on all pull requests to main
 
 ## Credits
 
-Testing (pytests) and streamlit UI: @claude
-Everything Else: Nikhil Aji (nklajiofficial@gmail.com)
+* Testing (pytests) and streamlit UI: @claude
+* Everything Else: Nikhil Aji (nklajiofficial@gmail.com)
