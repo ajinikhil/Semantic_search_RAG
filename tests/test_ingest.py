@@ -260,6 +260,79 @@ class TestUploadDocument:
         assert response.status_code == 500
         assert "Failed to process document" in response.json()["detail"]
 
+    # ── Issue #20: uploaded file must not be orphaned on failure ──────────────
+
+    @pytest.mark.asyncio
+    async def test_upload_failure_removes_orphaned_file(self, client, tmp_path):
+        """
+        Regression test for issue #20.
+
+        Given processing fails after the file has been written to disk,
+        When a file is uploaded,
+        Then the written file is removed so no orphan is left in the upload
+        directory (an orphan has no ChromaDB entry and the delete endpoint
+        could never reach it).
+        """
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch(
+                "app.routers.ingest.parser.extract_text",
+                side_effect=Exception("parse error"),
+            ),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("broken.pdf")
+            )
+
+        assert response.status_code == 500
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.asyncio
+    async def test_upload_empty_document_removes_orphaned_file(self, client, tmp_path):
+        """
+        Regression test for issue #20 (the 422 empty-text path).
+
+        Given a file that yields no extractable text,
+        When it is uploaded,
+        Then the written file is removed from the upload directory.
+        """
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value="   "),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("empty.pdf")
+            )
+
+        assert response.status_code == 422
+        assert list(tmp_path.iterdir()) == []
+
+    @pytest.mark.asyncio
+    async def test_upload_success_keeps_file_on_disk(self, client, tmp_path):
+        """
+        Regression test for issue #20.
+
+        Given a successful ingestion,
+        When a file is uploaded,
+        Then the file is kept on disk (the delete endpoint relies on it
+        existing in the upload directory).
+        """
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch("app.routers.ingest.parser.chunk_text", return_value=_FAKE_CHUNKS),
+            patch(
+                "app.routers.ingest.embedder.embed_text", return_value=_FAKE_EMBEDDINGS
+            ),
+            patch("app.routers.ingest.vectorstore.add_chunks", return_value=3),
+        ):
+            response = await client.post(
+                "/ingest/upload", files=make_upload_file("keep.pdf")
+            )
+
+        assert response.status_code == 200
+        assert (tmp_path / "keep.pdf").exists()
+
     @pytest.mark.asyncio
     async def test_upload_calls_services_in_correct_order(self, client):
         """

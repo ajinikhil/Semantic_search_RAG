@@ -64,6 +64,7 @@ async def upload_document(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    ingested = False
     try:
 
         raw_text = parser.extract_text(str(file_path))
@@ -84,6 +85,7 @@ async def upload_document(file: UploadFile = File(...)):
         chunks_created = vectorstore.add_chunks(
             chunks=chunks, embeddings=embeddings, filename=file.filename
         )
+        ingested = True
     except HTTPException:
         raise
 
@@ -92,6 +94,9 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=500, detail=f"Failed to process document: {str(e)}"
         )
+    finally:
+        if not ingested:
+            file_path.unlink(missing_ok=True)
 
     return IngestResponse(
         filename=file.filename,
