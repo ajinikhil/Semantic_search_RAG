@@ -16,7 +16,6 @@ CHUNK_OVERLAP = 200
 # ChromaDB Configuration
 CHROMA_DB_PATH = "data/chroma_db"
 CHROMA_RESULTS_RETURNED = 5
-TOP_K = 5
 
 # LLM Configuration
 

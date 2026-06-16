@@ -40,23 +40,27 @@ def add_chunks(chunks, embeddings, filename):
     return len(chunks)
 
 
-def search(query_vector):
+def search(query_vector, top_k=CHROMA_RESULTS_RETURNED):
     """
     Searches for the most similar chunks to the query vector in ChromaDB
 
     Args:
         query_vector: the question user asked as a vector
+        top_k: maximum number of chunks to return. Falls back to
+            CHROMA_RESULTS_RETURNED when not provided (None).
 
     Returns:
-            top 5 closest result related to the users question
+            the top_k closest results related to the user's question
 
     Raises:
         RuntimeError: if retreving results from chromaDB
     """
+    if top_k is None:
+        top_k = CHROMA_RESULTS_RETURNED
     try:
         results = collection.query(
             query_embeddings=[query_vector],
-            n_results=CHROMA_RESULTS_RETURNED,
+            n_results=top_k,
             include=["documents", "metadatas", "distances"],
         )
         return results

@@ -147,6 +147,27 @@ class TestSearch:
         call_kwargs = _mock_collection.query.call_args.kwargs
         assert set(call_kwargs["include"]) == {"documents", "metadatas", "distances"}
 
+    def test_uses_config_default_n_results_when_top_k_not_given(self):
+        """Without an explicit top_k, search must request the config default."""
+        chroma_service.search([0.0])
+
+        call_kwargs = _mock_collection.query.call_args.kwargs
+        assert call_kwargs["n_results"] == chroma_service.CHROMA_RESULTS_RETURNED
+
+    def test_passes_explicit_top_k_as_n_results(self):
+        """An explicit top_k must be forwarded to collection.query (issue #15)."""
+        chroma_service.search([0.0], top_k=12)
+
+        call_kwargs = _mock_collection.query.call_args.kwargs
+        assert call_kwargs["n_results"] == 12
+
+    def test_none_top_k_falls_back_to_config_default(self):
+        """top_k=None (an explicit null from the API) uses the config default."""
+        chroma_service.search([0.0], top_k=None)
+
+        call_kwargs = _mock_collection.query.call_args.kwargs
+        assert call_kwargs["n_results"] == chroma_service.CHROMA_RESULTS_RETURNED
+
     def test_raises_runtime_error_on_query_failure(self):
         """
         If ``collection.query`` raises, ``search`` must re-raise as

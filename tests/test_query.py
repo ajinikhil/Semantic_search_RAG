@@ -159,7 +159,7 @@ class TestQueryEndpointHappyPath:
             await client.post("/query", json={"query": "What is RAG?"})
 
         mock_embed.assert_called_once_with("What is RAG?")
-        mock_search.assert_called_once_with(_VECTOR)
+        mock_search.assert_called_once_with(_VECTOR, top_k=5)
         mock_gen.assert_called_once()
 
     @pytest.mark.asyncio
@@ -226,27 +226,34 @@ class TestQueryEndpointHappyPath:
         """
         Given a request body with no top_k_chunks field,
         When the endpoint is called,
-        Then the default of 5 is used and the request succeeds.
+        Then the default of 5 is threaded through to search() and the
+        request succeeds.
         """
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
-            patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
+            patch(
+                "app.routers.query.search", return_value=_SEARCH_RESULTS
+            ) as mock_search,
             patch("app.routers.query.generate_answer", return_value=_ANSWER),
         ):
             response = await client.post("/query", json={"query": "What is Python?"})
 
         assert response.status_code == 200
+        mock_search.assert_called_once_with(_VECTOR, top_k=5)
 
     @pytest.mark.asyncio
     async def test_top_k_chunks_within_bounds_accepted(self, client):
         """
         Given top_k_chunks is set to a valid value (e.g. 10),
         When the endpoint is called,
-        Then the request is accepted.
+        Then that value is threaded through to search() (regression test
+        for #15) and the request is accepted.
         """
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
-            patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
+            patch(
+                "app.routers.query.search", return_value=_SEARCH_RESULTS
+            ) as mock_search,
             patch("app.routers.query.generate_answer", return_value=_ANSWER),
         ):
             response = await client.post(
@@ -254,6 +261,7 @@ class TestQueryEndpointHappyPath:
             )
 
         assert response.status_code == 200
+        mock_search.assert_called_once_with(_VECTOR, top_k=10)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
