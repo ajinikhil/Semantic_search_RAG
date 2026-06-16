@@ -78,3 +78,33 @@ def generate_answer(question, chunks):
         return answer
     except Exception as e:
         raise RuntimeError(f"Error generating answer {e}")
+
+
+def build_summarize_prompt(text):
+    """
+    This function builds a prompt for the LLM
+    to summarize the document for the user
+
+    Args:
+    text: the extracted text from the document
+
+    Returns:
+    prompt: prompt for the LLM to summarize
+    """
+    try:
+        prompt = f"""You are a summarization expert.
+                    Write a clear, concise summary of the text below,
+                    capturing its main points and key details.
+
+                    Important:
+                    - Do not add facts, assumptions, or outside knowledge.
+                    - Focus on the main ideas, important details, and conclusions.
+
+                    CONTEXT:
+                    {text}
+
+                    SUMMARY:
+                    """
+        return prompt
+    except Exception as e:
+        raise RuntimeError(f"Error building prompt for summary: {e}")
