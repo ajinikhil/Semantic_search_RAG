@@ -83,7 +83,7 @@ async def upload_document(file: UploadFile = File(...)):
         embeddings = embedder.embed_text(chunks)
 
         chunks_created = vectorstore.add_chunks(
-            chunks=chunks, embeddings=embeddings, filename=file.filename
+            chunks=chunks, embeddings=embeddings, filename=safe_name
         )
         ingested = True
     except HTTPException:
@@ -99,9 +99,9 @@ async def upload_document(file: UploadFile = File(...)):
             file_path.unlink(missing_ok=True)
 
     return IngestResponse(
-        filename=file.filename,
+        filename=safe_name,
         chunks_created=chunks_created,
-        message=(f"'{file.filename}' successfully ingested into the vector store."),
+        message=(f"'{safe_name}' successfully ingested into the vector store."),
     )
 
 
