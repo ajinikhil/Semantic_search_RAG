@@ -93,7 +93,10 @@ def delete_by_file_name(filename):
             return 0
         collection.delete(ids=ids)
 
-        file_path = os.path.join(UPLOAD_DIR, filename)
+        # Reduce to the bare base name so a traversal sequence (e.g.
+        # "../passwd") in the metadata or path param cannot escape UPLOAD_DIR.
+        safe_name = os.path.basename(filename)
+        file_path = os.path.join(UPLOAD_DIR, safe_name)
         if os.path.exists(file_path):
             os.remove(file_path)
 

@@ -265,6 +265,21 @@ class TestDeleteByFileName:
 
         mock_remove.assert_called_once_with(expected_path)
 
+    def test_path_traversal_filename_is_confined_to_upload_dir(self):
+        """
+        A traversal sequence in the filename (issue #14) must be reduced to its
+        base name so ``os.remove`` can never escape ``UPLOAD_DIR``.
+        """
+        _mock_collection.get.return_value = {"ids": ["x"]}
+        expected_path = os.path.join(chroma_service.UPLOAD_DIR, "passwd")
+
+        with patch("os.path.exists", return_value=True), patch(
+            "os.remove"
+        ) as mock_remove:
+            chroma_service.delete_by_file_name("../passwd")
+
+        mock_remove.assert_called_once_with(expected_path)
+
 
 # ===========================================================================
 # get_stats
