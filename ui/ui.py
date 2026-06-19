@@ -17,6 +17,8 @@ if "thinking" not in st.session_state:
     st.session_state.thinking = False
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
+if "summaries" not in st.session_state:
+    st.session_state.summaries = {}
 
 # --- Sidebar: document upload + document list ---
 with st.sidebar:
@@ -67,17 +69,38 @@ with st.sidebar:
             if docs:
                 st.caption(f"{db_info['total_chunks']} total chunks")
                 for doc in docs:
-                    col1, col2 = st.columns([3, 1])
+                    col1, col2, col3 = st.columns([3, 1, 1])
                     col1.markdown(f"📄 {doc}")
-                    if col2.button("Delete", key=f"del_{doc}"):
+                    if col2.button("Summary", key=f"sum_{doc}"):
+                        with st.spinner(f"Summarizing {doc}..."):
+                            try:
+                                sum_resp = requests.get(
+                                    f"{BASE_URL}/ingest/documents/{doc}/summary",
+                                    timeout=120,
+                                )
+                                if sum_resp.ok:
+                                    st.session_state.summaries[doc] = sum_resp.json()[
+                                        "summary"
+                                    ]
+                                else:
+                                    st.error(
+                                        sum_resp.json().get("detail", "Summary failed")
+                                    )
+                            except requests.ConnectionError:
+                                st.error("Backend unreachable.")
+                    if col3.button("Delete", key=f"del_{doc}"):
                         del_resp = requests.delete(
                             f"{BASE_URL}/ingest/documents/{doc}", timeout=10
                         )
                         if del_resp.ok:
+                            st.session_state.summaries.pop(doc, None)
                             st.success(f"Deleted {doc}")
                             st.rerun()
                         else:
                             st.error(del_resp.json().get("detail", "Delete failed"))
+                    if st.session_state.summaries.get(doc):
+                        with st.expander(f"Summary of {doc}"):
+                            st.markdown(st.session_state.summaries[doc])
             else:
                 st.caption("No documents ingested yet.")
         else:

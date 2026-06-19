@@ -95,6 +95,19 @@ class QueryResponse(BaseModel):
     sources: list[SourceChunk]  # The souce chunks LLM used to generate the answer
 
 
+class SummaryResponse(BaseModel):
+    """
+    Response returned after generating a summary of a stored document.
+
+    Args:
+        filename (str): Name of the summarized document.
+        summary (str): LLM-generated summary of the document.
+    """
+
+    filename: str
+    summary: str
+
+
 class DbInfo(BaseModel):
     """
     Information about the current state of the vector database.

@@ -4,8 +4,9 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.config import ALLOWED_EXTENSIONS, UPLOAD_DIR
-from app.models.schemas import DbInfo, DeleteResponse, IngestResponse
+from app.models.schemas import DbInfo, DeleteResponse, IngestResponse, SummaryResponse
 from app.services import embedder, parser, vectorstore
+from app.services.llm import generate_summary
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -117,6 +118,55 @@ async def list_documents():
     """
     stats = vectorstore.get_stats()
     return DbInfo(**stats)
+
+
+@router.get("/documents/{filename}/summary", response_model=SummaryResponse)
+def summarize_document(filename: str):
+    """
+    Generate a summary of a previously uploaded document on demand.
+
+    The original file is re-read from the upload directory and parsed
+    back into text, which is then summarized by the LLM.
+
+    Args:
+        filename (str): Name of the document to summarize.
+
+    Raises:
+        HTTPException: if the filename is invalid, the document is not
+            found, or summary generation fails.
+
+    Returns:
+        SummaryResponse: The filename and the generated summary.
+    """
+    safe_name = Path(filename).name
+    file_path = (Path(UPLOAD_DIR) / safe_name).resolve()
+    if not str(file_path).startswith(str(Path(UPLOAD_DIR).resolve())):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document '{safe_name}' not found.",
+        )
+
+    try:
+        raw_text = parser.extract_text(str(file_path))
+
+        if not raw_text.strip():
+            raise HTTPException(
+                status_code=422,
+                detail="Could not extract any text from the document.",
+            )
+
+        summary = generate_summary(raw_text)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to summarize document: {str(e)}"
+        )
+
+    return SummaryResponse(filename=safe_name, summary=summary)
 
 
 @router.delete("/documents/{filename}", response_model=DeleteResponse)

@@ -1,8 +1,9 @@
 """
 Tests for the ingestion endpoints in app/routers/ingest.py:
-  POST   /ingest/upload              → upload and ingest a document
-  GET    /ingest/documents           → list stored documents
-  DELETE /ingest/documents/{filename} → delete a document
+  POST   /ingest/upload                       → upload and ingest a document
+  GET    /ingest/documents                     → list stored documents
+  GET    /ingest/documents/{filename}/summary  → summarize a stored document
+  DELETE /ingest/documents/{filename}          → delete a document
 
 Uses httpx.AsyncClient (async tests) with mocked ChromaDB and service calls
 so no real vector-DB writes or file-system side-effects occur.
@@ -449,6 +450,166 @@ class TestListDocuments:
         body = response.json()
         assert "total_chunks" in body
         assert "documents" in body
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  GET /ingest/documents/{filename}/summary
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestSummarizeDocument:
+    """Tests for GET /ingest/documents/{filename}/summary."""
+
+    @pytest.mark.asyncio
+    async def test_summarize_existing_document_returns_200(self, client, tmp_path):
+        """
+        Given a document that exists in the upload directory,
+        When a summary is requested,
+        Then a 200 response is returned with the filename and the summary.
+        """
+        (tmp_path / "report.pdf").write_bytes(b"some content")
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch(
+                "app.routers.ingest.generate_summary",
+                return_value="A concise summary.",
+            ),
+        ):
+            response = await client.get("/ingest/documents/report.pdf/summary")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["filename"] == "report.pdf"
+        assert body["summary"] == "A concise summary."
+
+    @pytest.mark.asyncio
+    async def test_summarize_passes_extracted_text_to_llm(self, client, tmp_path):
+        """
+        Given a stored document,
+        When a summary is requested,
+        Then the extracted document text is passed to generate_summary.
+        """
+        (tmp_path / "doc.pdf").write_bytes(b"some content")
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch(
+                "app.routers.ingest.generate_summary", return_value="summary"
+            ) as mock_summary,
+        ):
+            await client.get("/ingest/documents/doc.pdf/summary")
+
+        mock_summary.assert_called_once_with(_FAKE_TEXT)
+
+    @pytest.mark.asyncio
+    async def test_summarize_nonexistent_document_returns_404(self, client, tmp_path):
+        """
+        Given a filename that is not present in the upload directory,
+        When a summary is requested,
+        Then a 404 error is returned and the LLM is never called.
+        """
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.generate_summary") as mock_summary,
+        ):
+            response = await client.get("/ingest/documents/ghost.pdf/summary")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"]
+        mock_summary.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_summarize_empty_document_returns_422(self, client, tmp_path):
+        """
+        Given a stored file that yields no extractable text,
+        When a summary is requested,
+        Then a 422 error is returned and the LLM is never called.
+        """
+        (tmp_path / "blank.pdf").write_bytes(b"")
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value="   "),
+            patch("app.routers.ingest.generate_summary") as mock_summary,
+        ):
+            response = await client.get("/ingest/documents/blank.pdf/summary")
+
+        assert response.status_code == 422
+        assert "Could not extract any text" in response.json()["detail"]
+        mock_summary.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_summarize_llm_failure_returns_500(self, client, tmp_path):
+        """
+        Given the LLM raises an error while generating the summary,
+        When a summary is requested,
+        Then a 500 error is returned with a descriptive message.
+        """
+        (tmp_path / "doc.pdf").write_bytes(b"some content")
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch("app.routers.ingest.parser.extract_text", return_value=_FAKE_TEXT),
+            patch(
+                "app.routers.ingest.generate_summary",
+                side_effect=RuntimeError("model unavailable"),
+            ),
+        ):
+            response = await client.get("/ingest/documents/doc.pdf/summary")
+
+        assert response.status_code == 500
+        assert "Failed to summarize document" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_summarize_parser_failure_returns_500(self, client, tmp_path):
+        """
+        Given text extraction raises an unexpected error,
+        When a summary is requested,
+        Then a 500 error is returned.
+        """
+        (tmp_path / "doc.pdf").write_bytes(b"some content")
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(tmp_path)),
+            patch(
+                "app.routers.ingest.parser.extract_text",
+                side_effect=Exception("parse error"),
+            ),
+            patch("app.routers.ingest.generate_summary") as mock_summary,
+        ):
+            response = await client.get("/ingest/documents/doc.pdf/summary")
+
+        assert response.status_code == 500
+        assert "Failed to summarize document" in response.json()["detail"]
+        mock_summary.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_summarize_path_traversal_is_neutralized(self, client, tmp_path):
+        """
+        Security: a traversal payload must not let the endpoint read a file
+        outside the upload directory.
+
+        Given a secret file living above the upload directory,
+        When a summary is requested with a traversal-style filename whose
+        basename matches that secret file,
+        Then the filename is reduced to its basename (which does not exist
+        inside the upload directory), so the request does not summarize the
+        outside file.
+        """
+        # Secret lives in the parent of the (patched) upload directory.
+        upload_dir = tmp_path / "uploads"
+        upload_dir.mkdir()
+        (tmp_path / "secret.txt").write_bytes(b"top secret")
+
+        with (
+            patch("app.routers.ingest.UPLOAD_DIR", str(upload_dir)),
+            patch("app.routers.ingest.parser.extract_text") as mock_extract,
+            patch("app.routers.ingest.generate_summary") as mock_summary,
+        ):
+            response = await client.get("/ingest/documents/..%2Fsecret.txt/summary")
+
+        # The outside file is never read or summarized.
+        assert response.status_code != 200
+        mock_extract.assert_not_called()
+        mock_summary.assert_not_called()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

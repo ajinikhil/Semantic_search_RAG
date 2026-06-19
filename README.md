@@ -19,6 +19,19 @@ A search engine which provides answers only from the the documents you provide.
 * The LLM checks the chunks and generate an answer if it is in the retrived chunks.
 * The user will be presented the answer as well as the sources (Document name and the chunks).
 
+# Gemini API Key
+
+get your API key at: `https://aistudio.google.com/api-keys`
+
+* Create an env file and add: `GEMINI_API_KEY="your_APIA_key"`
+
+# Hugging Face Token
+
+* Create an account in Hugging Face
+* Go to: `https://huggingface.co/settings/tokens`
+* Create token
+* Paste `export HUGGINGFACEHUB_API_TOKEN="paste_your_token_here"` in your terminal
+
 ## Run the server
 
 `uvicorn app.main:app --reload`

@@ -1,10 +1,51 @@
+import random
+import time
+
 from google import genai
+from google.genai import errors
 
 from app.config import MODEL_NAME
+
+# Transient errors that are safe to retry: rate limit (429),
+# internal error (500) and "model overloaded" (503).
+_RETRYABLE_STATUS = {429, 500, 503}
+_MAX_ATTEMPTS = 4
+_BASE_DELAY = 1.0  # seconds; doubled each retry with jitter
 
 
 def get_client():
     return genai.Client()
+
+
+def _generate(prompt):
+    """
+    Call the LLM with the given prompt, retrying transient server errors
+    (429/500/503) with exponential backoff and jitter.
+
+    Args:
+        prompt: the fully built prompt string to send to the model.
+
+    Returns:
+        The generated text response.
+
+    Raises:
+        errors.APIError: if a non-retryable error occurs, or the request
+            still fails after the final retry.
+    """
+    client = get_client()
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=(prompt),
+            )
+            return response.text
+        except errors.APIError as e:
+            is_last = attempt == _MAX_ATTEMPTS - 1
+            if e.code not in _RETRYABLE_STATUS or is_last:
+                raise
+            delay = _BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
+            time.sleep(delay)
 
 
 def build_prompt(question, chunks):
@@ -67,15 +108,7 @@ def generate_answer(question, chunks):
     """
     try:
         prompt = build_prompt(question, chunks)
-
-        client = get_client()
-
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=(prompt),
-        )
-        answer = response.text
-        return answer
+        return _generate(prompt)
     except Exception as e:
         raise RuntimeError(f"Error generating answer {e}")
 
@@ -108,3 +141,23 @@ def build_summarize_prompt(text):
         return prompt
     except Exception as e:
         raise RuntimeError(f"Error building prompt for summary: {e}")
+
+
+def generate_summary(text):
+    """
+    Generates a summary of the given document text using Gemini.
+
+    Args:
+        text: the extracted text from the document to summarize
+
+    Returns:
+        summary: the generated summary from Gemini
+
+    Raise:
+        RuntimeError: if the model fails to generate a summary
+    """
+    try:
+        prompt = build_summarize_prompt(text)
+        return _generate(prompt)
+    except Exception as e:
+        raise RuntimeError(f"Error generating summary {e}")
