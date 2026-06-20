@@ -116,26 +116,30 @@ class TestBuildPrompt:
 class TestGenerateAnswer:
     """Tests for the generate_answer function."""
 
-    def test_generate_answer_returns_string(self, mock_client, sample_chunks):
-        """generate_answer should return a string."""
+    def test_generate_answer_returns_answer_and_used_sources(
+        self, mock_client, sample_chunks
+    ):
+        """generate_answer should return an (answer, used_sources) tuple."""
         mock_client.return_value.models.generate_content.return_value.text = (
-            "FastAPI is a web framework."
+            '{"answer": "FastAPI is a web framework.", "used_sources": [1]}'
         )
-        answer = generate_answer("What is FastAPI?", sample_chunks)
-        assert isinstance(answer, str)
+        answer, used = generate_answer("What is FastAPI?", sample_chunks)
+        assert answer == "FastAPI is a web framework."
+        assert used == [1]
 
     def test_generate_answer_returns_llm_response(self, mock_client, sample_chunks):
-        """generate_answer should return exactly what the LLM responds with."""
+        """generate_answer should return exactly the answer the LLM responds with."""
         mock_client.return_value.models.generate_content.return_value.text = (
-            "FastAPI is a web framework."
+            '{"answer": "FastAPI is a web framework.", "used_sources": [1, 2]}'
         )
-        answer = generate_answer("What is FastAPI?", sample_chunks)
+        answer, used = generate_answer("What is FastAPI?", sample_chunks)
         assert answer == "FastAPI is a web framework."
+        assert used == [1, 2]
 
     def test_generate_answer_calls_api_once(self, mock_client, sample_chunks):
         """generate_answer should call the Gemini API exactly once."""
         mock_client.return_value.models.generate_content.return_value.text = (
-            "Some answer."
+            '{"answer": "Some answer.", "used_sources": []}'
         )
         generate_answer("What is FastAPI?", sample_chunks)
         mock_client.return_value.models.generate_content.assert_called_once()
@@ -151,9 +155,10 @@ class TestGenerateAnswer:
             generate_answer("What is FastAPI?", sample_chunks)
 
     def test_generate_answer_empty_chunks(self, mock_client):
-        """generate_answer should still call the LLM even with no chunks."""
+        """generate_answer should report no used sources when there are none."""
         mock_client.return_value.models.generate_content.return_value.text = (
-            "I don't know."
+            '{"answer": "I don\'t know.", "used_sources": []}'
         )
-        answer = generate_answer("What is FastAPI?", [])
+        answer, used = generate_answer("What is FastAPI?", [])
         assert isinstance(answer, str)
+        assert used == []

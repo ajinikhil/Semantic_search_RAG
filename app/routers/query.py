@@ -45,8 +45,15 @@ async def query(request: QueryRequest):
                 )
             )
 
-        answer = generate_answer(request.query, sources)
+        answer, used_sources = generate_answer(request.query, sources)
 
-        return QueryResponse(query=request.query, response=answer, sources=sources)
+        # Keep only the chunks the answer actually relied on, preserving
+        # their similarity-ranked order (used_sources are 1-based, see #12).
+        used = {n for n in used_sources if 1 <= n <= len(sources)}
+        cited_sources = [src for i, src in enumerate(sources, start=1) if i in used]
+
+        return QueryResponse(
+            query=request.query, response=answer, sources=cited_sources
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
