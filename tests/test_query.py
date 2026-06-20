@@ -46,6 +46,10 @@ _SEARCH_RESULTS = {
 
 _ANSWER = "Based on the documents, the answer is X."
 
+# generate_answer now returns (answer, used_sources); by default both
+# retrieved chunks (1 and 2) are cited.
+_GEN_RESULT = (_ANSWER, [1, 2])
+
 _EMPTY_SEARCH = {"documents": [[]], "metadatas": [[]], "distances": [[]]}
 
 
@@ -67,7 +71,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "What is machine learning?"}
@@ -80,6 +84,48 @@ class TestQueryEndpointHappyPath:
         assert len(body["sources"]) == 2
 
     @pytest.mark.asyncio
+    async def test_only_cited_sources_returned(self, client):
+        """
+        Given the answer cites only source 2 of the two retrieved chunks,
+        When the endpoint is called,
+        Then only that chunk is returned in sources (regression test for #12).
+        """
+        with (
+            patch("app.routers.query.embed_query", return_value=_VECTOR),
+            patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
+            patch("app.routers.query.generate_answer", return_value=(_ANSWER, [2])),
+        ):
+            response = await client.post(
+                "/query", json={"query": "What is machine learning?"}
+            )
+
+        sources = response.json()["sources"]
+        assert len(sources) == 1
+        assert sources[0]["file_name"] == "doc_b.pdf"
+        assert sources[0]["chunk_index"] == 3
+
+    @pytest.mark.asyncio
+    async def test_uncited_answer_returns_no_sources(self, client):
+        """
+        Given the answer cites no sources (e.g. "I don't know"),
+        When the endpoint is called,
+        Then the sources list is empty even though chunks were retrieved.
+        """
+        with (
+            patch("app.routers.query.embed_query", return_value=_VECTOR),
+            patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
+            patch(
+                "app.routers.query.generate_answer", return_value=("I don't know.", [])
+            ),
+        ):
+            response = await client.post(
+                "/query", json={"query": "Unrelated question."}
+            )
+
+        assert response.status_code == 200
+        assert response.json()["sources"] == []
+
+    @pytest.mark.asyncio
     async def test_response_contains_correct_source_fields(self, client):
         """
         Given a valid query,
@@ -89,7 +135,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "What is deep learning?"}
@@ -112,7 +158,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "Tell me about neural nets."}
@@ -133,7 +179,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post("/query", json={"query": question})
 
@@ -153,7 +199,7 @@ class TestQueryEndpointHappyPath:
                 "app.routers.query.search", return_value=_SEARCH_RESULTS
             ) as mock_search,
             patch(
-                "app.routers.query.generate_answer", return_value=_ANSWER
+                "app.routers.query.generate_answer", return_value=_GEN_RESULT
             ) as mock_gen,
         ):
             await client.post("/query", json={"query": "What is RAG?"})
@@ -175,7 +221,7 @@ class TestQueryEndpointHappyPath:
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
             patch(
-                "app.routers.query.generate_answer", return_value=_ANSWER
+                "app.routers.query.generate_answer", return_value=_GEN_RESULT
             ) as mock_gen,
         ):
             await client.post("/query", json={"query": question})
@@ -195,7 +241,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_EMPTY_SEARCH),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "Completely unrelated topic."}
@@ -215,7 +261,7 @@ class TestQueryEndpointHappyPath:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post("/query", json={"query": long_query})
 
@@ -234,7 +280,7 @@ class TestQueryEndpointHappyPath:
             patch(
                 "app.routers.query.search", return_value=_SEARCH_RESULTS
             ) as mock_search,
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post("/query", json={"query": "What is Python?"})
 
@@ -254,7 +300,7 @@ class TestQueryEndpointHappyPath:
             patch(
                 "app.routers.query.search", return_value=_SEARCH_RESULTS
             ) as mock_search,
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "What is Python?", "top_k_chunks": 10}
@@ -337,7 +383,7 @@ class TestQueryValidation:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "test", "top_k_chunks": 1}
@@ -355,7 +401,7 @@ class TestQueryValidation:
         with (
             patch("app.routers.query.embed_query", return_value=_VECTOR),
             patch("app.routers.query.search", return_value=_SEARCH_RESULTS),
-            patch("app.routers.query.generate_answer", return_value=_ANSWER),
+            patch("app.routers.query.generate_answer", return_value=_GEN_RESULT),
         ):
             response = await client.post(
                 "/query", json={"query": "test", "top_k_chunks": 20}
