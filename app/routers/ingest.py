@@ -1,3 +1,4 @@
+import logging
 import shutil
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from app.config import ALLOWED_EXTENSIONS, UPLOAD_DIR
 from app.models.schemas import DbInfo, DeleteResponse, IngestResponse, SummaryResponse
 from app.services import embedder, parser, vectorstore
 from app.services.llm import generate_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ingest", tags=["ingestion"])
 
@@ -90,10 +93,10 @@ async def upload_document(file: UploadFile = File(...)):
     except HTTPException:
         raise
 
-    except Exception as e:
-
+    except Exception:
+        logger.exception("Failed to process document '%s'", safe_name)
         raise HTTPException(
-            status_code=500, detail=f"Failed to process document: {str(e)}"
+            status_code=500, detail="Internal error processing the document."
         )
     finally:
         if not ingested:
@@ -161,9 +164,10 @@ def summarize_document(filename: str):
         summary = generate_summary(raw_text)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.exception("Failed to summarize document '%s'", safe_name)
         raise HTTPException(
-            status_code=500, detail=f"Failed to summarize document: {str(e)}"
+            status_code=500, detail="Internal error summarizing the document."
         )
 
     return SummaryResponse(filename=safe_name, summary=summary)

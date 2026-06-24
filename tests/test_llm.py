@@ -2,8 +2,9 @@ from unittest.mock import patch
 
 import pytest
 
+import app.services.llm as llm
 from app.models.schemas import SourceChunk
-from app.services.llm import build_prompt, generate_answer
+from app.services.llm import build_prompt, generate_answer, get_client
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,25 @@ def mock_client():
     """
     with patch("app.services.llm.get_client") as mock:
         yield mock
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  get_client
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetClient:
+    """Tests for the lazy module-level Gemini client singleton (issue #17)."""
+
+    def test_client_is_cached_and_built_once(self):
+        """get_client should construct genai.Client once and reuse it."""
+        llm._client = None  # reset the module-level singleton
+        with patch("app.services.llm.genai.Client") as mock_ctor:
+            first = get_client()
+            second = get_client()
+
+        assert first is second
+        mock_ctor.assert_called_once()
 
 
 # ══════════════════════════════════════════════════════════════════════════════

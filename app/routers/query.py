@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import QueryRequest, QueryResponse, SourceChunk
 from app.services.embedder import embed_query
 from app.services.llm import generate_answer
 from app.services.vectorstore import search
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
 
@@ -55,5 +59,8 @@ async def query(request: QueryRequest):
         return QueryResponse(
             query=request.query, response=answer, sources=cited_sources
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("Error processing query")
+        raise HTTPException(
+            status_code=500, detail="Internal error processing the query."
+        )
