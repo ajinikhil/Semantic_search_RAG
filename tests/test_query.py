@@ -471,11 +471,12 @@ class TestQueryServiceFailures:
         assert response.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_500_response_contains_error_detail(self, client):
+    async def test_500_response_has_generic_detail_without_leak(self, client):
         """
         Given the embedder raises an exception with a specific message,
         When the query endpoint is called,
-        Then the 500 response body contains the error detail.
+        Then the 500 response returns a generic detail and does not leak the
+        raw exception text (issue #16).
         """
         with patch(
             "app.routers.query.embed_query", side_effect=Exception("out of memory")
@@ -483,4 +484,5 @@ class TestQueryServiceFailures:
             response = await client.post("/query", json={"query": "test question"})
 
         assert response.status_code == 500
-        assert response.json().get("detail") is not None
+        assert response.json()["detail"] == "Internal error processing the query."
+        assert "out of memory" not in response.json()["detail"]

@@ -193,7 +193,8 @@ class TestUploadDocument:
         """
         Given the parser raises an unexpected exception,
         When a file is uploaded,
-        Then a 500 error is returned with the error message.
+        Then a 500 error is returned with a generic message that does not
+        leak the raw exception text (issue #16).
         """
         with (
             patch("builtins.open", MagicMock()),
@@ -208,7 +209,8 @@ class TestUploadDocument:
             )
 
         assert response.status_code == 500
-        assert "Failed to process document" in response.json()["detail"]
+        assert response.json()["detail"] == "Internal error processing the document."
+        assert "parse error" not in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_upload_embedder_failure_returns_500(self, client):
@@ -232,7 +234,8 @@ class TestUploadDocument:
             )
 
         assert response.status_code == 500
-        assert "Failed to process document" in response.json()["detail"]
+        assert response.json()["detail"] == "Internal error processing the document."
+        assert "model unavailable" not in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_upload_vectorstore_failure_returns_500(self, client):
@@ -259,7 +262,8 @@ class TestUploadDocument:
             )
 
         assert response.status_code == 500
-        assert "Failed to process document" in response.json()["detail"]
+        assert response.json()["detail"] == "Internal error processing the document."
+        assert "disk full" not in response.json()["detail"]
 
     # ── Issue #20: uploaded file must not be orphaned on failure ──────────────
 
@@ -543,7 +547,8 @@ class TestSummarizeDocument:
         """
         Given the LLM raises an error while generating the summary,
         When a summary is requested,
-        Then a 500 error is returned with a descriptive message.
+        Then a 500 error is returned with a generic message that does not
+        leak the raw exception text (issue #16).
         """
         (tmp_path / "doc.pdf").write_bytes(b"some content")
         with (
@@ -557,7 +562,8 @@ class TestSummarizeDocument:
             response = await client.get("/ingest/documents/doc.pdf/summary")
 
         assert response.status_code == 500
-        assert "Failed to summarize document" in response.json()["detail"]
+        assert response.json()["detail"] == "Internal error summarizing the document."
+        assert "model unavailable" not in response.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_summarize_parser_failure_returns_500(self, client, tmp_path):
@@ -578,7 +584,8 @@ class TestSummarizeDocument:
             response = await client.get("/ingest/documents/doc.pdf/summary")
 
         assert response.status_code == 500
-        assert "Failed to summarize document" in response.json()["detail"]
+        assert response.json()["detail"] == "Internal error summarizing the document."
+        assert "parse error" not in response.json()["detail"]
         mock_summary.assert_not_called()
 
     @pytest.mark.asyncio

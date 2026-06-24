@@ -24,8 +24,21 @@ class _AnswerWithSources(BaseModel):
     used_sources: list[int]
 
 
+_client = None
+
+
 def get_client():
-    return genai.Client()
+    """
+    Return a lazily-created, module-level Gemini client.
+
+    The client (config/credential setup) is built once and reused across
+    requests instead of being re-instantiated on every call, mirroring the
+    singleton pattern in embedder.get_model.
+    """
+    global _client
+    if _client is None:
+        _client = genai.Client()
+    return _client
 
 
 def _generate(prompt, config=None):
