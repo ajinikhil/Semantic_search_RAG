@@ -42,11 +42,12 @@ def single_chunk():
 @pytest.fixture
 def mock_client():
     """
-    Patch get_client() so no real Gemini API call is made.
+    Patch get_client() so no real Ollama call is made.
 
     get_client() is called inside generate_answer() — patching it
     means mock_client.return_value is the client instance used
-    inside the function.
+    inside the function. The client's chat() returns a mapping shaped
+    like Ollama's ChatResponse: {"message": {"content": ...}}.
     """
     with patch("app.services.llm.get_client") as mock:
         yield mock
@@ -58,12 +59,12 @@ def mock_client():
 
 
 class TestGetClient:
-    """Tests for the lazy module-level Gemini client singleton (issue #17)."""
+    """Tests for the lazy module-level Ollama client singleton (issue #17)."""
 
     def test_client_is_cached_and_built_once(self):
-        """get_client should construct genai.Client once and reuse it."""
+        """get_client should construct ollama.Client once and reuse it."""
         llm._client = None  # reset the module-level singleton
-        with patch("app.services.llm.genai.Client") as mock_ctor:
+        with patch("app.services.llm.ollama.Client") as mock_ctor:
             first = get_client()
             second = get_client()
 
@@ -140,45 +141,52 @@ class TestGenerateAnswer:
         self, mock_client, sample_chunks
     ):
         """generate_answer should return an (answer, used_sources) tuple."""
-        mock_client.return_value.models.generate_content.return_value.text = (
-            '{"answer": "FastAPI is a web framework.", "used_sources": [1]}'
-        )
+        mock_client.return_value.chat.return_value = {
+            "message": {
+                "content": (
+                    '{"answer": "FastAPI is a web framework.", ' '"used_sources": [1]}'
+                )
+            }
+        }
         answer, used = generate_answer("What is FastAPI?", sample_chunks)
         assert answer == "FastAPI is a web framework."
         assert used == [1]
 
     def test_generate_answer_returns_llm_response(self, mock_client, sample_chunks):
         """generate_answer should return exactly the answer the LLM responds with."""
-        mock_client.return_value.models.generate_content.return_value.text = (
-            '{"answer": "FastAPI is a web framework.", "used_sources": [1, 2]}'
-        )
+        mock_client.return_value.chat.return_value = {
+            "message": {
+                "content": (
+                    '{"answer": "FastAPI is a web framework.", '
+                    '"used_sources": [1, 2]}'
+                )
+            }
+        }
         answer, used = generate_answer("What is FastAPI?", sample_chunks)
         assert answer == "FastAPI is a web framework."
         assert used == [1, 2]
 
     def test_generate_answer_calls_api_once(self, mock_client, sample_chunks):
-        """generate_answer should call the Gemini API exactly once."""
-        mock_client.return_value.models.generate_content.return_value.text = (
-            '{"answer": "Some answer.", "used_sources": []}'
-        )
+        """generate_answer should call the Ollama API exactly once."""
+        mock_client.return_value.chat.return_value = {
+            "message": {"content": '{"answer": "Some answer.", "used_sources": []}'}
+        }
         generate_answer("What is FastAPI?", sample_chunks)
-        mock_client.return_value.models.generate_content.assert_called_once()
+        mock_client.return_value.chat.assert_called_once()
 
     def test_generate_answer_raises_runtime_error_on_api_failure(
         self, mock_client, sample_chunks
     ):
         """generate_answer should raise RuntimeError if the API call fails."""
-        mock_client.return_value.models.generate_content.side_effect = Exception(
-            "API unavailable"
-        )
+        mock_client.return_value.chat.side_effect = Exception("API unavailable")
         with pytest.raises(RuntimeError):
             generate_answer("What is FastAPI?", sample_chunks)
 
     def test_generate_answer_empty_chunks(self, mock_client):
         """generate_answer should report no used sources when there are none."""
-        mock_client.return_value.models.generate_content.return_value.text = (
-            '{"answer": "I don\'t know.", "used_sources": []}'
-        )
+        mock_client.return_value.chat.return_value = {
+            "message": {"content": '{"answer": "I don\'t know.", "used_sources": []}'}
+        }
         answer, used = generate_answer("What is FastAPI?", [])
         assert isinstance(answer, str)
         assert used == []

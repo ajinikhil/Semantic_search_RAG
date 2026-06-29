@@ -1,12 +1,16 @@
-import json
 import random
 import time
 
-from google import genai
-from google.genai import errors, types
+import ollama
 from pydantic import BaseModel
 
-from app.config import BASE_DELAY, MAX_ATTEMPTS, MODEL_NAME, RETRYABLE_STATUS
+from app.config import (
+    BASE_DELAY,
+    MAX_ATTEMPTS,
+    MODEL_NAME,
+    OLLAMA_HOST,
+    RETRYABLE_STATUS,
+)
 
 
 class _AnswerWithSources(BaseModel):
@@ -29,47 +33,49 @@ _client = None
 
 def get_client():
     """
-    Return a lazily-created, module-level Gemini client.
+    Return a lazily-created, module-level Ollama client.
 
-    The client (config/credential setup) is built once and reused across
-    requests instead of being re-instantiated on every call, mirroring the
-    singleton pattern in embedder.get_model.
+    The client is built once and reused across requests instead of being
+    re-instantiated on every call, mirroring the singleton pattern in
+    embedder.get_model. Honors OLLAMA_HOST when set, otherwise talks to
+    the local Ollama daemon.
     """
     global _client
     if _client is None:
-        _client = genai.Client()
+        _client = ollama.Client(host=OLLAMA_HOST)
     return _client
 
 
-def _generate(prompt, config=None):
+def _generate(prompt, response_format=None):
     """
-    Call the LLM with the given prompt, retrying transient server errors
-    (429/500/503) with exponential backoff and jitter.
+    Call the local LLM with the given prompt, retrying transient server
+    errors (429/500/503) with exponential backoff and jitter.
 
     Args:
         prompt: the fully built prompt string to send to the model.
-        config: optional GenerateContentConfig (e.g. to request structured
-            JSON output). Passed straight through to the Gemini client.
+        response_format: optional JSON schema (dict) constraining the
+            output to structured JSON. Passed to Ollama's ``format``.
 
     Returns:
         The generated text response.
 
     Raises:
-        errors.APIError: if a non-retryable error occurs, or the request
-            still fails after the final retry.
+        ollama.ResponseError: if a non-retryable error occurs, or the
+            request still fails after the final retry.
     """
     client = get_client()
     for attempt in range(MAX_ATTEMPTS):
         try:
-            response = client.models.generate_content(
+            response = client.chat(
                 model=MODEL_NAME,
-                contents=(prompt),
-                config=config,
+                messages=[{"role": "user", "content": prompt}],
+                format=response_format,
+                options={"temperature": 0},
             )
-            return response.text
-        except errors.APIError as e:
+            return response["message"]["content"]
+        except ollama.ResponseError as e:
             is_last = attempt == MAX_ATTEMPTS - 1
-            if e.code not in RETRYABLE_STATUS or is_last:
+            if e.status_code not in RETRYABLE_STATUS or is_last:
                 raise
             delay = BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
             time.sleep(delay)
@@ -122,7 +128,7 @@ def build_prompt(question, chunks):
 def generate_answer(question, chunks):
     """
     Generates answer for the user's question using
-    the retrived chunks and Gemini LM.
+    the retrived chunks and a local LLM.
 
     Args:
         question: the question asked by the user
@@ -139,12 +145,9 @@ def generate_answer(question, chunks):
     """
     try:
         prompt = build_prompt(question, chunks)
-        config = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=_AnswerWithSources,
-        )
-        raw = _generate(prompt, config=config)
-        result = _AnswerWithSources(**json.loads(raw))
+        schema = _AnswerWithSources.model_json_schema()
+        raw = _generate(prompt, response_format=schema)
+        result = _AnswerWithSources.model_validate_json(raw)
         return result.answer, result.used_sources
     except Exception as e:
         raise RuntimeError(f"Error generating answer {e}")
@@ -182,7 +185,7 @@ def build_summarize_prompt(text):
 
 def generate_summary(text):
     """
-    Generates a summary of the given document text using Gemini.
+    Generates a summary of the given document text using the local LLM.
 
     Args:
         text: the extracted text from the document to summarize
