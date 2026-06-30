@@ -5,7 +5,7 @@ pydantic
 python-dotenv
 python-multipart
 sentence_transformers
-google-genai
+ollama
 langchain-text-splitters
 chromadb>=1.5.9
 pyxtxt[pdf,docx,presentation,txt]
