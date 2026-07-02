@@ -1,7 +1,11 @@
+import os
+
 import requests
 import streamlit as st
 
-BASE_URL = "http://localhost:8000"
+# Backend URL. Defaults to localhost for `streamlit run` on the host;
+# docker-compose sets API_URL=http://api:8000 to reach the API container.
+BASE_URL = os.getenv("API_URL", "http://localhost:8000")
 
 st.title("Semantic Search RAG")
 

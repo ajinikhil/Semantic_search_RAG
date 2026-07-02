@@ -1,0 +1,42 @@
+services:
+  api:
+    build: .
+    image: semantic-search-rag
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      # The LLM (Ollama) runs on the host so documents never leave the
+      # machine and it can use the host GPU. Point the client at it.
+      OLLAMA_HOST: http://host.docker.internal:11434
+    volumes:
+      # Bind-mount the project's local folders so the ChromaDB store and the
+      # uploaded files are shared with native runs and stay visible on the host.
+      - ./data:/app/data           # persistent ChromaDB
+      - ./uploads:/app/uploads     # original uploaded files (re-read for summaries)
+      - hf-cache:/home/appuser/.cache/huggingface  # cache the embedding model
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux; a no-op on Mac/Windows.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ui:
+    # Reuses the image the api service builds (same codebase, different
+    # command). Only one service declares `build:` so Compose doesn't try to
+    # export the same image tag from two parallel builds at once.
+    image: semantic-search-rag
+    command: streamlit run ui/ui.py --server.address 0.0.0.0 --server.port 8501
+    ports:
+      - "8501:8501"
+    environment:
+      # Reach the API over the compose network instead of localhost.
+      API_URL: http://api:8000
+    depends_on:
+      - api
+
+volumes:
+  hf-cache:

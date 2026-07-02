@@ -1,0 +1,28 @@
+# Version control / CI
+.git/
+.github/
+.gitignore
+.gitattributes
+.pre-commit-config.yaml
+
+# Python caches and virtual envs
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+venv/
+.venv/
+
+# Local runtime data (recreated inside the container / mounted as volumes)
+data/
+uploads/
+.env
+
+# Not needed in the image
+tests/
+postman/
+*.md
+
+# OS cruft
+.DS_Store

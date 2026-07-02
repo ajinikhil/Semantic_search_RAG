@@ -1,8 +1,5 @@
 # Semantic Search Engine
 
-> [!IMPORTANT]
-> currently in active development : )
-
 A search engine which provides answers only from the the documents you provide.
 
 > * The main goal of this system is to keep your files private and ask questions about them without any data leaving your machine.
@@ -31,7 +28,29 @@ By default the app talks to the local daemon at `http://127.0.0.1:11434`. To
 point it elsewhere, set `OLLAMA_HOST` (e.g. `http://host.docker.internal:11434`
 when running inside Docker).
 
-# Hugging Face Token
+## Run with Docker (recommended)
+
+The API and the Streamlit UI ship as one image and are wired together with
+Docker Compose. The LLM (Ollama) still runs on the **host** so your documents
+never leave the machine and it can use the host GPU.
+
+1. Make sure Ollama is running on the host with the model pulled:
+   ```
+   ollama pull qwen2.5:3b-instruct
+   ollama serve   # or just open the Ollama app
+   ```
+2. Build and start the stack:
+   ```
+   docker compose up --build
+   ```
+3. Open the UI at `http://localhost:8501` (the API is at `http://localhost:8000`).
+
+Uploaded files and the ChromaDB store live in the project's `./uploads` and
+`./data` folders (bind-mounted into the container), so they are shared with
+native runs and stay on the host. The downloaded embedding model is cached in a
+named volume so it isn't re-downloaded on every start.
+
+
 
 * Create an account in Hugging Face
 * Go to: `https://huggingface.co/settings/tokens`

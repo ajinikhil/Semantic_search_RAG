@@ -191,7 +191,7 @@ def generate_summary(text):
         text: the extracted text from the document to summarize
 
     Returns:
-        summary: the generated summary from Gemini
+        summary: the generated summary from LLM
 
     Raise:
         RuntimeError: if the model fails to generate a summary
