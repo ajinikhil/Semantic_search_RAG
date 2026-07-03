@@ -50,6 +50,29 @@ Uploaded files and the ChromaDB store live in the project's `./uploads` and
 native runs and stay on the host. The downloaded embedding model is cached in a
 named volume so it isn't re-downloaded on every start.
 
+### Run the prebuilt image (GitHub Container Registry)
+
+Prefer not to build locally? A prebuilt, multi-arch image (`amd64` + `arm64`,
+so it runs natively on Apple Silicon) is published to the GitHub Container
+Registry on every push to `main`. You only need the `docker-compose.ghcr.yml`
+file from this repo — not a full clone.
+
+1. Make sure Ollama is running on the host with the model pulled (as above).
+2. Pull and start the stack using the published image:
+   ```
+   docker compose -f docker-compose.ghcr.yml up
+   ```
+   This pulls `ghcr.io/ajinikhil/semantic_search_rag:latest` instead of
+   building. To pull just the image directly:
+   ```
+   docker pull ghcr.io/ajinikhil/semantic_search_rag:latest
+   ```
+3. Open the UI at `http://localhost:8501` (the API is at `http://localhost:8000`).
+
+The embedding model is downloaded from Hugging Face on first use; set `HF_TOKEN`
+(your free token) in your shell or a local `.env` file so the download isn't
+rate-limited.
+
 
 
 * Create an account in Hugging Face

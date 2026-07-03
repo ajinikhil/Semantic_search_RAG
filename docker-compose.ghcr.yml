@@ -1,0 +1,52 @@
+# Run the PREBUILT image from the GitHub Container Registry instead of building
+# locally. This file is self-contained: a user only needs this one file (not a
+# full clone) plus Ollama running on the host.
+#
+#   docker compose -f docker-compose.ghcr.yml up
+#
+# The app code, API and Streamlit UI all live inside the published image; only
+# the ChromaDB store and uploaded files are bind-mounted so they persist on the
+# host.
+services:
+  api:
+    image: ghcr.io/ajinikhil/semantic_search_rag:latest
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      # The LLM (Ollama) runs on the host so documents never leave the machine
+      # and it can use the host GPU. Point the client at it.
+      OLLAMA_HOST: http://host.docker.internal:11434
+      # First use downloads the embedding model from Hugging Face. Pass your
+      # free token (set HF_TOKEN or the legacy HUGGINGFACEHUB_API_TOKEN in your
+      # shell or a local .env file) so the download isn't rate-limited. Both
+      # default to empty, so leaving them unset is fine.
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN:-}
+    volumes:
+      - ./data:/app/data           # persistent ChromaDB
+      - ./uploads:/app/uploads     # original uploaded files (re-read for summaries)
+      - hf-cache:/home/appuser/.cache/huggingface  # cache the embedding model
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux; a no-op on Mac/Windows.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  ui:
+    # Same published image, different command (the API and UI share one image).
+    image: ghcr.io/ajinikhil/semantic_search_rag:latest
+    command: streamlit run ui/ui.py --server.address 0.0.0.0 --server.port 8501
+    ports:
+      - "8501:8501"
+    environment:
+      # Reach the API over the compose network instead of localhost.
+      API_URL: http://api:8000
+    depends_on:
+      - api
+
+volumes:
+  hf-cache:
