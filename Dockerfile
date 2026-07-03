@@ -10,6 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# System libraries. libmagic1 provides the native libmagic that python-magic
+# (used by pyxtxt for file-type detection) loads at runtime; it isn't bundled
+# in the slim image, so text extraction fails without it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first so this layer is cached across code changes.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
