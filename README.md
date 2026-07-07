@@ -21,12 +21,8 @@ A search engine which provides answers only from the the documents you provide.
 The answer/summary model runs locally through Ollama — no API key required.
 
 * Install Ollama from `https://ollama.com/download`
-* Pull the model: `ollama pull qwen2.5:3b-instruct`
+* Pull the model: `ollama pull qwen2.5:3b-instruct` (or use some other good model).
 * Make sure the Ollama server is running (`ollama serve`, or just open the app)
-
-By default the app talks to the local daemon at `http://127.0.0.1:11434`. To
-point it elsewhere, set `OLLAMA_HOST` (e.g. `http://host.docker.internal:11434`
-when running inside Docker).
 
 ## Run with Docker (recommended)
 
@@ -50,31 +46,26 @@ Uploaded files and the ChromaDB store live in the project's `./uploads` and
 native runs and stay on the host. The downloaded embedding model is cached in a
 named volume so it isn't re-downloaded on every start.
 
-### Run the prebuilt image (GitHub Container Registry)
+## Run the prebuilt image (GitHub Container Registry)
 
-Prefer not to build locally? A prebuilt, multi-arch image (`amd64` + `arm64`,
-so it runs natively on Apple Silicon) is published to the GitHub Container
-Registry on every push to `main`. You only need the `docker-compose.ghcr.yml`
-file from this repo — not a full clone.
+A prebuilt, multi-arch image is published to the GitHub Container
+Registry on every push to `main`. You only need the `docker-compose.ghcr.yml`file from this repo.
 
-1. Make sure Ollama is running on the host with the model pulled (as above).
-2. Pull and start the stack using the published image:
-   ```
-   docker compose -f docker-compose.ghcr.yml up
-   ```
-   This pulls `ghcr.io/ajinikhil/semantic_search_rag:latest` instead of
-   building. To pull just the image directly:
-   ```
-   docker pull ghcr.io/ajinikhil/semantic_search_rag:latest
-   ```
-3. Open the UI at `http://localhost:8501` (the API is at `http://localhost:8000`).
+#### How to run the package?
 
-The embedding model is downloaded from Hugging Face on first use; set `HF_TOKEN`
-(your free token) in your shell or a local `.env` file so the download isn't
-rate-limited.
+1. Create a new folder.
+2. paste `docker-compose.ghcr.yml` from this repo.
+3. run ```
+         docker pull ghcr.io/ajinikhil/semantic_search_rag:sha-faf7018
+         ```
+4. run ```
+         docker compose -f docker-compose.ghcr.yml up
+         ```
+5. Make sure Ollama is running on the host with the model pulled (as above).
+6. Open the UI at `http://localhost:8501` (the backend is at `http://localhost:8000`).
+7. It is preferred to set `HF_TOKEN` in you terminal or a local `.env` so that the download is not rate limited. 
 
-
-
+## How to set up Hugging Face token
 * Create an account in Hugging Face
 * Go to: `https://huggingface.co/settings/tokens`
 * Create token
